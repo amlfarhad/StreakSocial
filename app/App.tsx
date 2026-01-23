@@ -263,6 +263,43 @@ function HomeScreen({
   onCheckIn: (goal: Goal) => void;
 }) {
   const { theme } = useContext(ThemeContext);
+  const [timeLeft, setTimeLeft] = useState('');
+  const [isCheckInWindow, setIsCheckInWindow] = useState(false);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const hour = now.getHours();
+
+      // Check-in window: 8 AM - 10 PM (can customize per user preference later)
+      if (hour >= 8 && hour < 22) {
+        setIsCheckInWindow(true);
+        // Calculate time until 10 PM
+        const endTime = new Date();
+        endTime.setHours(22, 0, 0, 0);
+        const diff = endTime.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeft(`${hours}h ${mins}m`);
+      } else {
+        setIsCheckInWindow(false);
+        // Calculate time until 8 AM
+        const nextWindow = new Date();
+        if (hour >= 22) {
+          nextWindow.setDate(nextWindow.getDate() + 1);
+        }
+        nextWindow.setHours(8, 0, 0, 0);
+        const diff = nextWindow.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeft(`${hours}h ${mins}m`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -278,6 +315,26 @@ function HomeScreen({
         You have {goals.length} active goals
       </Text>
 
+      {/* Check-in Window Banner */}
+      <View style={[styles.checkInBanner, {
+        backgroundColor: isCheckInWindow ? theme.accent + '15' : theme.bgSecondary,
+        borderColor: isCheckInWindow ? theme.accent : theme.border
+      }]}>
+        <View style={styles.checkInBannerLeft}>
+          <Text style={[styles.checkInBannerTitle, { color: theme.text }]}>
+            {isCheckInWindow ? '📸 Check-in Window Open' : '⏰ Next Window'}
+          </Text>
+          <Text style={[styles.checkInBannerTime, { color: isCheckInWindow ? theme.accent : theme.textSecondary }]}>
+            {isCheckInWindow ? `${timeLeft} remaining` : `Opens in ${timeLeft}`}
+          </Text>
+        </View>
+        {isCheckInWindow && (
+          <View style={[styles.checkInBannerBadge, { backgroundColor: theme.accent }]}>
+            <Text style={styles.checkInBannerBadgeText}>LIVE</Text>
+          </View>
+        )}
+      </View>
+
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TODAY</Text>
 
@@ -289,10 +346,10 @@ function HomeScreen({
             activeOpacity={0.7}
           >
             <TouchableOpacity
-              style={[styles.checkbox, { borderColor: theme.accent }]}
+              style={[styles.checkbox, { borderColor: isCheckInWindow ? theme.accent : theme.border }]}
               onPress={() => onCheckIn(goal)}
             >
-              <View style={[styles.checkboxInner, { backgroundColor: theme.accent }]} />
+              {isCheckInWindow && <View style={[styles.checkboxPulse, { backgroundColor: theme.accent }]} />}
             </TouchableOpacity>
             <View style={styles.goalContent}>
               <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
@@ -1043,11 +1100,20 @@ const styles = StyleSheet.create({
   goalCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, marginRight: 14, justifyContent: 'center', alignItems: 'center' },
   checkboxInner: { width: 10, height: 10, borderRadius: 3, opacity: 0 },
+  checkboxPulse: { width: 10, height: 10, borderRadius: 5 },
   goalContent: { flex: 1 },
   goalTitle: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
   goalMeta: { fontSize: 13 },
   streakBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   streakText: { fontSize: 12, fontWeight: '600' },
+
+  // Check-in Banner
+  checkInBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, borderWidth: 1, marginTop: 20, marginBottom: 4 },
+  checkInBannerLeft: { flex: 1 },
+  checkInBannerTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  checkInBannerTime: { fontSize: 13, fontWeight: '500' },
+  checkInBannerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
+  checkInBannerBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
 
   // Add button
   addButton: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
