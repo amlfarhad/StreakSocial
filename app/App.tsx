@@ -96,10 +96,13 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleAuth = async () => {
+    setMessage(null);
+
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setMessage({ type: 'error', text: 'Please fill in all fields' });
       return;
     }
 
@@ -110,7 +113,7 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
         if (error) throw error;
       } else {
         if (!name) {
-          Alert.alert('Error', 'Please enter your name');
+          setMessage({ type: 'error', text: 'Please enter your name' });
           setIsLoading(false);
           return;
         }
@@ -120,11 +123,13 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
           options: { data: { name } }
         });
         if (error) throw error;
-        Alert.alert('Success', 'Check your email to verify your account!');
+        setMessage({ type: 'success', text: 'Account created! Check your email to verify.' });
+        setIsLoading(false);
+        return;
       }
       onAuthSuccess();
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      setMessage({ type: 'error', text: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -138,6 +143,20 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
           <Text style={[styles.authSubtitle, { color: theme.textSecondary }]}>
             {isLogin ? 'Welcome back!' : 'Create your account'}
           </Text>
+
+          {message && (
+            <View style={[
+              styles.authMessage,
+              { backgroundColor: message.type === 'error' ? '#FFEBE9' : '#E6F7ED' }
+            ]}>
+              <Text style={[
+                styles.authMessageText,
+                { color: message.type === 'error' ? '#D73A49' : '#22863A' }
+              ]}>
+                {message.text}
+              </Text>
+            </View>
+          )}
 
           {!isLogin && (
             <TextInput
@@ -181,7 +200,7 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.authSwitch}>
+          <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setMessage(null); }} style={styles.authSwitch}>
             <Text style={[styles.authSwitchText, { color: theme.textSecondary }]}>
               {isLogin ? "Don't have an account? " : 'Already have an account? '}
               <Text style={{ color: theme.accent }}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
@@ -1139,4 +1158,6 @@ const styles = StyleSheet.create({
   authButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
   authSwitch: { marginTop: 24, alignItems: 'center' },
   authSwitchText: { fontSize: 14 },
+  authMessage: { padding: 14, borderRadius: 10, marginBottom: 20 },
+  authMessageText: { fontSize: 14, textAlign: 'center' },
 });
