@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+app/node_modules/
+
+# Python
+api/venv/
+api/__pycache__/
+api/**/__pycache__/
+*.pyc
+
+# Environment
+.env
+api/.env
+
+# OS
+.DS_Store
+
+# Build
+app/.expo/
+app/dist/
