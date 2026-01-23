@@ -18,7 +18,6 @@ A social goal accountability app with AI coaching. Combines Notion-style product
 - **Backend**: Python + FastAPI
 - **Auth**: Supabase
 - **AI**: Google Gemini 2.5
-- **Tracing**: Opik
 
 ## Quick Start
 
@@ -60,5 +59,4 @@ Scan QR code with Expo Go on your phone.
 ## API Keys
 
 - **Gemini**: [aistudio.google.com](https://aistudio.google.com)
-- **Opik**: [comet.com/opik](https://comet.com/opik)
 - **Supabase**: [supabase.com](https://supabase.com)

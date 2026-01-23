@@ -1,5 +1,5 @@
 """
-Gemini AI Integration with Opik Tracing
+Gemini AI Integration
 """
 import os
 from google import genai
