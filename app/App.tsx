@@ -90,8 +90,8 @@ interface FeedItem {
 function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab: string) => void }) {
   const { theme } = useContext(ThemeContext);
   const tabs: { id: string; icon: keyof typeof Feather.glyphMap; label: string }[] = [
-    { id: 'home', icon: 'home', label: 'Home' },
     { id: 'feed', icon: 'camera', label: 'Feed' },
+    { id: 'home', icon: 'home', label: 'Goals' },
     { id: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
