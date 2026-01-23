@@ -20,6 +20,8 @@ import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Markdown from 'react-native-markdown-display';
 import { Feather } from '@expo/vector-icons';
+import { supabase } from './lib/supabase';
+import { Session, User } from '@supabase/supabase-js';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_URL = 'http://192.168.177.207:8000';
@@ -82,6 +84,113 @@ interface FeedItem {
   caption: string;
   timeAgo: string;
   likes: number;
+}
+
+// ============================================
+// AUTH SCREEN - Login/Signup
+// ============================================
+function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
+  const { theme } = useContext(ThemeContext);
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleAuth = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        if (!name) {
+          Alert.alert('Error', 'Please enter your name');
+          setIsLoading(false);
+          return;
+        }
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name } }
+        });
+        if (error) throw error;
+        Alert.alert('Success', 'Check your email to verify your account!');
+      }
+      onAuthSuccess();
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={styles.authContainer}>
+          <Text style={[styles.authTitle, { color: theme.text }]}>StreakSocial</Text>
+          <Text style={[styles.authSubtitle, { color: theme.textSecondary }]}>
+            {isLogin ? 'Welcome back!' : 'Create your account'}
+          </Text>
+
+          {!isLogin && (
+            <TextInput
+              style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              placeholder="Your name"
+              placeholderTextColor={theme.textSecondary}
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
+          )}
+
+          <TextInput
+            style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            placeholder="Email"
+            placeholderTextColor={theme.textSecondary}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+
+          <TextInput
+            style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            placeholder="Password"
+            placeholderTextColor={theme.textSecondary}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          <TouchableOpacity
+            style={[styles.authButton, { backgroundColor: theme.accent }]}
+            onPress={handleAuth}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.authButtonText}>{isLogin ? 'Sign In' : 'Create Account'}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.authSwitch}>
+            <Text style={[styles.authSwitchText, { color: theme.textSecondary }]}>
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <Text style={{ color: theme.accent }}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
 }
 
 // ============================================
@@ -312,7 +421,12 @@ function SettingsScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={[styles.logoutButton, { borderColor: theme.accent }]}>
+      <TouchableOpacity
+        style={[styles.logoutButton, { borderColor: theme.accent }]}
+        onPress={async () => {
+          await supabase.auth.signOut();
+        }}
+      >
         <Text style={[styles.logoutText, { color: theme.accent }]}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -763,6 +877,8 @@ function CheckInScreen({ goal, onBack, onComplete }: { goal: Goal; onBack: () =>
 export default function App() {
   const systemScheme = useColorScheme();
   const [isDark, setIsDark] = useState(systemScheme === 'dark');
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [tab, setTab] = useState('feed');
   const [screen, setScreen] = useState<'tabs' | 'goal' | 'coach' | 'checkin' | 'create'>('tabs');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
@@ -773,6 +889,42 @@ export default function App() {
   ]);
 
   const theme = isDark ? darkTheme : lightTheme;
+
+  // Auth state listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <View style={[styles.container, { backgroundColor: theme.bg, justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={theme.accent} />
+        </View>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </ThemeContext.Provider>
+    );
+  }
+
+  // Show auth screen if not logged in
+  if (!session) {
+    return (
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <AuthScreen onAuthSuccess={() => { }} />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </ThemeContext.Provider>
+    );
+  }
 
   if (screen === 'create') {
     return (
@@ -977,4 +1129,14 @@ const styles = StyleSheet.create({
   permissionText: { fontSize: 16, marginBottom: 20, textAlign: 'center', paddingHorizontal: 40 },
   permissionButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginBottom: 16 },
   permissionButtonText: { color: '#FFF', fontWeight: '600' },
+
+  // Auth
+  authContainer: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, paddingTop: 60 },
+  authTitle: { fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 8, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+  authSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 40 },
+  authInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, marginBottom: 16 },
+  authButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  authButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+  authSwitch: { marginTop: 24, alignItems: 'center' },
+  authSwitchText: { fontSize: 14 },
 });

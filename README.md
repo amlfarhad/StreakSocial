@@ -4,22 +4,39 @@ A social goal accountability app with AI coaching. Combines Notion-style product
 
 ## Features
 
+- 🔐 **User Authentication** — Email/password login via Supabase
 - 🎯 **AI Goal Creation** — Conversational AI helps you define clear, achievable goals
 - 💬 **AI Coach** — Get personalized advice and motivation for each goal
-- 📷 **Photo Check-ins** — Daily photo proof with countdown timer
+- 📷 **Photo Check-ins** — Daily photo proof with in-app camera
 - 🔥 **Streak Tracking** — Build momentum with visual streak counters
-- 📊 **Weekly Progress** — Notion-style progress visualization
+- 📸 **Social Feed** — See community check-ins and stay motivated
+- 🌓 **Dark/Light Mode** — Beautiful warm theme with toggle
 
 ## Tech Stack
 
 - **Frontend**: React Native + Expo
 - **Backend**: Python + FastAPI
+- **Auth**: Supabase
 - **AI**: Google Gemini 2.5
 - **Tracing**: Opik
 
 ## Quick Start
 
-### Backend
+### 1. Supabase Setup
+
+1. Create a free account at [supabase.com](https://supabase.com)
+2. Create a new project
+3. Go to Settings → API and copy:
+   - Project URL
+   - `anon` public key
+4. Update `app/lib/supabase.ts` with your credentials:
+
+```typescript
+const SUPABASE_URL = 'your-project-url';
+const SUPABASE_ANON_KEY = 'your-anon-key';
+```
+
+### 2. Backend Setup
 
 ```bash
 cd api
@@ -30,7 +47,7 @@ cp .env.example .env  # Add your API keys
 python main.py
 ```
 
-### Frontend
+### 3. Frontend Setup
 
 ```bash
 cd app
@@ -44,3 +61,4 @@ Scan QR code with Expo Go on your phone.
 
 - **Gemini**: [aistudio.google.com](https://aistudio.google.com)
 - **Opik**: [comet.com/opik](https://comet.com/opik)
+- **Supabase**: [supabase.com](https://supabase.com)
