@@ -234,7 +234,7 @@ function FeedScreen() {
 
           <View style={styles.feedFooter}>
             <TouchableOpacity style={styles.likeButton}>
-              <Text style={{ fontSize: 16 }}>❤️ {item.likes}</Text>
+              <Text style={{ fontSize: 16, color: theme.text }}>❤️ {item.likes}</Text>
             </TouchableOpacity>
             <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.timeAgo}</Text>
           </View>
