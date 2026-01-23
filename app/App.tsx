@@ -19,6 +19,7 @@ import {
 import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Markdown from 'react-native-markdown-display';
+import { Feather } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_URL = 'http://192.168.177.207:8000';
@@ -88,10 +89,10 @@ interface FeedItem {
 // ============================================
 function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab: string) => void }) {
   const { theme } = useContext(ThemeContext);
-  const tabs = [
-    { id: 'home', icon: '●', label: 'Home' },
-    { id: 'feed', icon: '◐', label: 'Feed' },
-    { id: 'settings', icon: '○', label: 'Settings' },
+  const tabs: { id: string; icon: keyof typeof Feather.glyphMap; label: string }[] = [
+    { id: 'home', icon: 'home', label: 'Home' },
+    { id: 'feed', icon: 'camera', label: 'Feed' },
+    { id: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
   return (
@@ -102,7 +103,11 @@ function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab
           style={styles.tabItem}
           onPress={() => onTabPress(tab.id)}
         >
-          <Text style={[styles.tabIcon, activeTab === tab.id && { opacity: 1 }]}>{tab.icon}</Text>
+          <Feather
+            name={tab.icon}
+            size={22}
+            color={activeTab === tab.id ? theme.accent : theme.textSecondary}
+          />
           <Text style={[
             styles.tabLabel,
             { color: activeTab === tab.id ? theme.accent : theme.textSecondary }
