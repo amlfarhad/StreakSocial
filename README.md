@@ -1,50 +1,14 @@
-# GoalSync
+# StreakSocial
 
-A goal accountability app that combines Notion-style productivity with BeReal-style check-ins.
+A social goal accountability app with AI coaching. Combines Notion-style productivity with BeReal-style check-ins.
 
-## Project Structure
+## Features
 
-```
-├── app/                # React Native (Expo) frontend
-│   └── App.tsx        # Main app component
-├── api/               # Python (FastAPI) backend
-│   ├── main.py       # API entry point
-│   ├── ai/           # Gemini AI integration
-│   └── routes/       # API endpoints
-└── README.md
-```
-
-## Quick Start
-
-### 1. Backend Setup
-
-```bash
-cd api
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Create .env file
-cp .env.example .env
-# Edit .env with your API keys
-
-# Run the server
-python main.py
-```
-
-### 2. Frontend Setup
-
-```bash
-cd app
-npm start
-```
-
-Then scan the QR code with Expo Go on your iPhone.
-
-## API Keys Needed
-
-1. **Gemini API Key**: Get it free at [aistudio.google.com](https://aistudio.google.com)
-2. **Opik API Key**: Get it free at [comet.com/opik](https://comet.com/opik)
+- 🎯 **AI Goal Creation** — Conversational AI helps you define clear, achievable goals
+- 💬 **AI Coach** — Get personalized advice and motivation for each goal
+- 📷 **Photo Check-ins** — Daily photo proof with countdown timer
+- 🔥 **Streak Tracking** — Build momentum with visual streak counters
+- 📊 **Weekly Progress** — Notion-style progress visualization
 
 ## Tech Stack
 
@@ -52,3 +16,31 @@ Then scan the QR code with Expo Go on your iPhone.
 - **Backend**: Python + FastAPI
 - **AI**: Google Gemini 2.5
 - **Tracing**: Opik
+
+## Quick Start
+
+### Backend
+
+```bash
+cd api
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Add your API keys
+python main.py
+```
+
+### Frontend
+
+```bash
+cd app
+npm install
+npm start
+```
+
+Scan QR code with Expo Go on your phone.
+
+## API Keys
+
+- **Gemini**: [aistudio.google.com](https://aistudio.google.com)
+- **Opik**: [comet.com/opik](https://comet.com/opik)

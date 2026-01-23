@@ -11,8 +11,8 @@ load_dotenv()
 
 # Create FastAPI app
 app = FastAPI(
-    title="GoalSync API",
-    description="Backend for GoalSync - Goal accountability app",
+    title="StreakSocial API",
+    description="Backend for StreakSocial - Social goal accountability app",
     version="1.0.0"
 )
 
