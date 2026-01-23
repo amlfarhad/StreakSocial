@@ -91,7 +91,7 @@ function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab
   const { theme } = useContext(ThemeContext);
   const tabs: { id: string; icon: keyof typeof Feather.glyphMap; label: string }[] = [
     { id: 'feed', icon: 'camera', label: 'Feed' },
-    { id: 'home', icon: 'home', label: 'Goals' },
+    { id: 'home', icon: 'check-square', label: 'Goals' },
     { id: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
