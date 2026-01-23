@@ -11,18 +11,53 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Dimensions
+  Dimensions,
+  Image,
+  Switch,
+  useColorScheme
 } from 'react-native';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Markdown from 'react-native-markdown-display';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const API_URL = 'http://192.168.177.207:8000';
 
-// API base URL - your computer's IP so phone can reach it
-const API_URL = 'http://192.168.183.52:8000';
+// ============================================
+// THEME SYSTEM
+// ============================================
+const lightTheme = {
+  bg: '#FDF8F3',           // Warm cream
+  bgSecondary: '#F5EDE6',  // Warm light tan
+  text: '#2C2417',         // Warm dark brown
+  textSecondary: '#8B7355',// Warm brown
+  accent: '#E07A5F',       // Terracotta
+  accentSecondary: '#81B29A', // Sage green
+  border: '#E8DFD5',       // Warm border
+  card: '#FFFFFF',
+};
 
-// Types
+const darkTheme = {
+  bg: '#1A1A1A',
+  bgSecondary: '#252525',
+  text: '#F5F5F5',
+  textSecondary: '#888888',
+  accent: '#E07A5F',
+  accentSecondary: '#81B29A',
+  border: '#333333',
+  card: '#2A2A2A',
+};
+
+type Theme = typeof lightTheme;
+const ThemeContext = createContext<{ theme: Theme; isDark: boolean; toggle: () => void }>({
+  theme: lightTheme,
+  isDark: false,
+  toggle: () => { },
+});
+
+// ============================================
+// TYPES
+// ============================================
 interface Goal {
   id: string;
   title: string;
@@ -37,93 +72,250 @@ interface ChatMessage {
   content: string;
 }
 
-// ============================================
-// HOME SCREEN - Notion Style
-// ============================================
-function HomeScreen({
-  onGoalPress,
-  onAddGoal,
-  onCheckIn
-}: {
-  onGoalPress: (goal: Goal) => void;
-  onAddGoal: () => void;
-  onCheckIn: (goal: Goal) => void;
-}) {
-  const [goals] = useState<Goal[]>([
-    { id: '1', title: 'Run 3x per week', category: 'fitness', current_streak: 12, frequency: 'daily', description: '' },
-    { id: '2', title: 'Read 30 minutes', category: 'learning', current_streak: 5, frequency: 'daily', description: '' },
-    { id: '3', title: 'Meditate daily', category: 'wellness', current_streak: 3, frequency: 'daily', description: '' },
-  ]);
+interface FeedItem {
+  id: string;
+  user: string;
+  avatar: string;
+  goal: string;
+  streak: number;
+  caption: string;
+  timeAgo: string;
+  likes: number;
+}
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning.';
-    if (hour < 18) return 'Good afternoon.';
-    return 'Good evening.';
-  };
+// ============================================
+// BOTTOM TAB BAR
+// ============================================
+function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab: string) => void }) {
+  const { theme } = useContext(ThemeContext);
+  const tabs = [
+    { id: 'home', icon: '●', label: 'Home' },
+    { id: 'feed', icon: '◐', label: 'Feed' },
+    { id: 'settings', icon: '○', label: 'Settings' },
+  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Notion-style greeting */}
-        <Text style={styles.greeting}>{getGreeting()}</Text>
-
-        {/* Today section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>TODAY</Text>
-
-          {goals.map((goal) => (
-            <TouchableOpacity
-              key={goal.id}
-              style={styles.todoItem}
-              onPress={() => onGoalPress(goal)}
-              activeOpacity={0.6}
-            >
-              <TouchableOpacity
-                style={styles.todoCheckbox}
-                onPress={() => onCheckIn(goal)}
-              >
-                <View style={styles.checkboxInner} />
-              </TouchableOpacity>
-              <View style={styles.todoContent}>
-                <Text style={styles.todoTitle}>{goal.title}</Text>
-                <Text style={styles.todoMeta}>
-                  🔥 {goal.current_streak} day streak
-                </Text>
-              </View>
-              <View style={styles.progressPill}>
-                <Text style={styles.progressPillText}>
-                  {Math.min(100, Math.round((goal.current_streak / 30) * 100))}%
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-
-          {/* Add new */}
-          <TouchableOpacity style={styles.addNew} onPress={onAddGoal}>
-            <Text style={styles.addNewIcon}>+</Text>
-            <Text style={styles.addNewText}>New goal</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Community section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>COMMUNITY</Text>
-          <View style={styles.communityCard}>
-            <Text style={styles.communityText}>
-              See what others with similar goals are doing
-            </Text>
-            <Text style={styles.communityArrow}>→</Text>
-          </View>
-        </View>
-      </ScrollView>
-      <StatusBar style="dark" />
-    </SafeAreaView>
+    <View style={[styles.tabBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+      {tabs.map(tab => (
+        <TouchableOpacity
+          key={tab.id}
+          style={styles.tabItem}
+          onPress={() => onTabPress(tab.id)}
+        >
+          <Text style={[styles.tabIcon, activeTab === tab.id && { opacity: 1 }]}>{tab.icon}</Text>
+          <Text style={[
+            styles.tabLabel,
+            { color: activeTab === tab.id ? theme.accent : theme.textSecondary }
+          ]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 }
 
 // ============================================
-// GOAL DETAIL - Notion Style
+// HOME SCREEN
+// ============================================
+function HomeScreen({
+  goals,
+  onGoalPress,
+  onAddGoal,
+  onCheckIn
+}: {
+  goals: Goal[];
+  onGoalPress: (goal: Goal) => void;
+  onAddGoal: () => void;
+  onCheckIn: (goal: Goal) => void;
+}) {
+  const { theme } = useContext(ThemeContext);
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  return (
+    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.greeting, { color: theme.text }]}>{getGreeting()}</Text>
+      <Text style={[styles.subGreeting, { color: theme.textSecondary }]}>
+        You have {goals.length} active goals
+      </Text>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TODAY</Text>
+
+        {goals.map((goal) => (
+          <TouchableOpacity
+            key={goal.id}
+            style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onPress={() => onGoalPress(goal)}
+            activeOpacity={0.7}
+          >
+            <TouchableOpacity
+              style={[styles.checkbox, { borderColor: theme.accent }]}
+              onPress={() => onCheckIn(goal)}
+            >
+              <View style={[styles.checkboxInner, { backgroundColor: theme.accent }]} />
+            </TouchableOpacity>
+            <View style={styles.goalContent}>
+              <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
+              <Text style={[styles.goalMeta, { color: theme.textSecondary }]}>
+                🔥 {goal.current_streak} day streak
+              </Text>
+            </View>
+            <View style={[styles.streakBadge, { backgroundColor: theme.accentSecondary + '20' }]}>
+              <Text style={[styles.streakText, { color: theme.accentSecondary }]}>
+                {Math.min(100, Math.round((goal.current_streak / 30) * 100))}%
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: theme.accent }]}
+          onPress={onAddGoal}
+        >
+          <Text style={styles.addButtonText}>+ Add New Goal</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ============================================
+// FEED SCREEN
+// ============================================
+function FeedScreen() {
+  const { theme } = useContext(ThemeContext);
+
+  const feedItems: FeedItem[] = [
+    { id: '1', user: 'Sarah K.', avatar: '👩‍🦰', goal: 'Morning yoga', streak: 45, caption: 'Day 45! 🧘‍♀️ Feeling stronger every day', timeAgo: '2h ago', likes: 12 },
+    { id: '2', user: 'Mike R.', avatar: '👨‍🦱', goal: 'Read daily', streak: 23, caption: 'Just finished Atomic Habits 📚', timeAgo: '4h ago', likes: 8 },
+    { id: '3', user: 'Emma L.', avatar: '👩', goal: 'Run 5K', streak: 14, caption: 'Rainy run but made it happen! 🌧️', timeAgo: '5h ago', likes: 24 },
+    { id: '4', user: 'Alex T.', avatar: '🧑', goal: 'Learn guitar', streak: 30, caption: 'Finally nailed that chord progression 🎸', timeAgo: '8h ago', likes: 31 },
+  ];
+
+  return (
+    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.pageTitle, { color: theme.text }]}>Community</Text>
+      <Text style={[styles.subGreeting, { color: theme.textSecondary, marginBottom: 24 }]}>
+        See what others are achieving
+      </Text>
+
+      {feedItems.map(item => (
+        <View key={item.id} style={[styles.feedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.feedHeader}>
+            <View style={styles.feedUser}>
+              <Text style={styles.feedAvatar}>{item.avatar}</Text>
+              <View>
+                <Text style={[styles.feedUserName, { color: theme.text }]}>{item.user}</Text>
+                <Text style={[styles.feedGoal, { color: theme.textSecondary }]}>{item.goal}</Text>
+              </View>
+            </View>
+            <View style={[styles.feedStreak, { backgroundColor: theme.accent + '20' }]}>
+              <Text style={[styles.feedStreakText, { color: theme.accent }]}>🔥 {item.streak}</Text>
+            </View>
+          </View>
+
+          <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
+            <Text style={{ fontSize: 48 }}>📷</Text>
+          </View>
+
+          <Text style={[styles.feedCaption, { color: theme.text }]}>{item.caption}</Text>
+
+          <View style={styles.feedFooter}>
+            <TouchableOpacity style={styles.likeButton}>
+              <Text style={{ fontSize: 16 }}>❤️ {item.likes}</Text>
+            </TouchableOpacity>
+            <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.timeAgo}</Text>
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+// ============================================
+// SETTINGS SCREEN
+// ============================================
+function SettingsScreen() {
+  const { theme, isDark, toggle } = useContext(ThemeContext);
+
+  return (
+    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.pageTitle, { color: theme.text }]}>Settings</Text>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>APPEARANCE</Text>
+
+        <View style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Dark Mode</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>
+              {isDark ? 'Currently using dark theme' : 'Currently using light theme'}
+            </Text>
+          </View>
+          <Switch
+            value={isDark}
+            onValueChange={toggle}
+            trackColor={{ false: theme.border, true: theme.accent }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ACCOUNT</Text>
+
+        <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Profile</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Edit your profile info</Text>
+          </View>
+          <Text style={{ color: theme.textSecondary }}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Notifications</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Manage push notifications</Text>
+          </View>
+          <Text style={{ color: theme.textSecondary }}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Privacy</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Control who sees your check-ins</Text>
+          </View>
+          <Text style={{ color: theme.textSecondary }}>→</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ABOUT</Text>
+
+        <View style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Version</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>1.0.0</Text>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity style={[styles.logoutButton, { borderColor: theme.accent }]}>
+        <Text style={[styles.logoutText, { color: theme.accent }]}>Sign Out</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ============================================
+// GOAL DETAIL SCREEN
 // ============================================
 function GoalDetailScreen({
   goal,
@@ -136,68 +328,63 @@ function GoalDetailScreen({
   onAskCoach: () => void;
   onCheckIn: () => void;
 }) {
+  const { theme } = useContext(ThemeContext);
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const today = new Date().getDay();
   const completedDays = weekDays.map((_, i) => i < today - 1);
   const progress = Math.min(100, Math.round((goal.current_streak / 30) * 100));
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Back */}
         <TouchableOpacity onPress={onBack} style={styles.backRow}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
         </TouchableOpacity>
 
-        {/* Title - Notion style with serif */}
-        <Text style={styles.pageTitle}>{goal.title}</Text>
+        <Text style={[styles.pageTitle, { color: theme.text }]}>{goal.title}</Text>
 
-        {/* Progress section */}
-        <View style={styles.propertyRow}>
-          <Text style={styles.propertyLabel}>Progress</Text>
-          <View style={styles.propertyValue}>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progress}%` }]} />
+        <View style={[styles.propertyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.propertyRow}>
+            <Text style={[styles.propertyLabel, { color: theme.textSecondary }]}>Progress</Text>
+            <View style={styles.propertyValue}>
+              <View style={[styles.progressTrack, { backgroundColor: theme.bgSecondary }]}>
+                <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.accent }]} />
+              </View>
+              <Text style={[styles.progressPercent, { color: theme.text }]}>{progress}%</Text>
             </View>
-            <Text style={styles.progressPercent}>{progress}%</Text>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          <View style={styles.propertyRow}>
+            <Text style={[styles.propertyLabel, { color: theme.textSecondary }]}>Streak</Text>
+            <Text style={[styles.propertyValueText, { color: theme.text }]}>🔥 {goal.current_streak} days</Text>
           </View>
         </View>
 
-        <View style={styles.propertyRow}>
-          <Text style={styles.propertyLabel}>Streak</Text>
-          <Text style={styles.propertyValueText}>🔥 {goal.current_streak} days</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* This Week */}
-        <Text style={styles.blockTitle}>This Week</Text>
+        <Text style={[styles.blockTitle, { color: theme.text }]}>This Week</Text>
         <View style={styles.weekGrid}>
           {weekDays.map((day, index) => (
             <View key={day} style={styles.weekDay}>
               <View style={[
                 styles.weekDayCircle,
-                completedDays[index] && styles.weekDayComplete,
-                index === today - 1 && styles.weekDayToday
+                { borderColor: theme.border },
+                completedDays[index] && { backgroundColor: theme.accent, borderColor: theme.accent },
+                index === today - 1 && { borderColor: theme.text, borderWidth: 2 }
               ]}>
                 {completedDays[index] && <Text style={styles.weekDayCheck}>✓</Text>}
               </View>
-              <Text style={styles.weekDayLabel}>{day}</Text>
+              <Text style={[styles.weekDayLabel, { color: theme.textSecondary }]}>{day}</Text>
             </View>
           ))}
         </View>
 
-        <View style={styles.divider} />
-
-        {/* Actions */}
-        <TouchableOpacity style={styles.actionButton} onPress={onCheckIn}>
-          <Text style={styles.actionButtonIcon}>📷</Text>
-          <Text style={styles.actionButtonText}>Check in now</Text>
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.accent }]} onPress={onCheckIn}>
+          <Text style={styles.actionButtonText}>📷 Check in now</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButtonSecondary} onPress={onAskCoach}>
-          <Text style={styles.actionButtonIcon}>💬</Text>
-          <Text style={styles.actionButtonTextSecondary}>Ask AI Coach</Text>
+        <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={onAskCoach}>
+          <Text style={[styles.actionButtonTextSecondary, { color: theme.text }]}>💬 Ask AI Coach</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -205,9 +392,10 @@ function GoalDetailScreen({
 }
 
 // ============================================
-// AI COACH - Notion Style
+// AI COACH SCREEN
 // ============================================
 function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
+  const { theme, isDark } = useContext(ThemeContext);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState<ChatMessage[]>([
@@ -255,29 +443,30 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
     }
   };
 
+  const mdStyles = {
+    body: { color: theme.text, fontSize: 15, lineHeight: 22 },
+    strong: { fontWeight: '600' as const, color: theme.text },
+    bullet_list: { marginVertical: 4 },
+    paragraph: { marginVertical: 4 },
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        {/* Header */}
-        <View style={styles.coachHeader}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={[styles.chatHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onBack}>
-            <Text style={styles.backText}>← Back</Text>
+            <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.coachHeaderTitle}>AI Coach</Text>
+          <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>AI Coach</Text>
           <View style={{ width: 50 }} />
         </View>
 
-        {/* Goal context bar */}
-        <View style={styles.contextBar}>
-          <Text style={styles.contextText}>
+        <View style={[styles.contextBar, { backgroundColor: theme.bgSecondary }]}>
+          <Text style={[styles.contextText, { color: theme.text }]}>
             🎯 {goal.title} • 🔥 {goal.current_streak} days
           </Text>
         </View>
 
-        {/* Messages - Notion style */}
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -287,16 +476,16 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
           {conversation.map((msg, index) => (
             <View key={index} style={styles.messageBlock}>
               {msg.role === 'assistant' && (
-                <View style={styles.aiIndicator}>
+                <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
                   <Text style={styles.aiIndicatorText}>AI</Text>
                 </View>
               )}
               {msg.role === 'assistant' ? (
                 <View style={{ flex: 1 }}>
-                  <Markdown style={markdownStyles}>{msg.content}</Markdown>
+                  <Markdown style={mdStyles}>{msg.content}</Markdown>
                 </View>
               ) : (
-                <Text style={[styles.messageText, styles.userMessageText]}>
+                <Text style={[styles.userMessage, { color: theme.text, backgroundColor: theme.accent + '20' }]}>
                   {msg.content}
                 </Text>
               )}
@@ -305,27 +494,26 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
 
           {isLoading && (
             <View style={styles.messageBlock}>
-              <View style={styles.aiIndicator}>
+              <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
                 <Text style={styles.aiIndicatorText}>AI</Text>
               </View>
-              <ActivityIndicator size="small" color="#37352F" />
+              <ActivityIndicator size="small" color={theme.accent} />
             </View>
           )}
         </ScrollView>
 
-        {/* Input - Notion style */}
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.bgSecondary, color: theme.text }]}
             placeholder="Ask about your goal..."
-            placeholderTextColor="#A5A5A5"
+            placeholderTextColor={theme.textSecondary}
             value={message}
             onChangeText={setMessage}
             onSubmitEditing={sendMessage}
             returnKeyType="send"
           />
           <TouchableOpacity
-            style={[styles.sendBtn, !message.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, { backgroundColor: theme.accent }, !message.trim() && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!message.trim() || isLoading}
           >
@@ -338,151 +526,14 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
 }
 
 // ============================================
-// IN-APP CAMERA CHECK-IN
+// CREATE GOAL SCREEN
 // ============================================
-function CheckInScreen({ goal, onBack, onComplete }: { goal: Goal; onBack: () => void; onComplete: () => void }) {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [facing, setFacing] = useState<CameraType>('back');
-  const [timeLeft, setTimeLeft] = useState(120);
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => (prev <= 0 ? 0 : prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const takePhoto = async () => {
-    if (cameraRef.current) {
-      const result = await cameraRef.current.takePictureAsync();
-      if (result) {
-        setPhoto(result.uri);
-      }
-    }
-  };
-
-  const submitCheckIn = async () => {
-    if (!photo) return;
-    setIsUploading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsUploading(false);
-    Alert.alert(
-      '✓ Check-in complete',
-      `Your streak is now ${goal.current_streak + 1} days!`,
-      [{ text: 'Done', onPress: onComplete }]
-    );
-  };
-
-  if (!permission) {
-    return <View style={styles.cameraContainer}><ActivityIndicator /></View>;
-  }
-
-  if (!permission.granted) {
-    return (
-      <SafeAreaView style={styles.cameraContainer}>
-        <Text style={styles.permissionText}>Camera access is needed for check-ins</Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-          <Text style={styles.permissionButtonText}>Grant Permission</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.permissionBack}>Go back</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <View style={styles.cameraContainer}>
-      {!photo ? (
-        <>
-          {/* Live camera */}
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing={facing}
-          >
-            {/* Header overlay */}
-            <SafeAreaView style={styles.cameraOverlay}>
-              <View style={styles.cameraTopBar}>
-                <TouchableOpacity onPress={onBack}>
-                  <Text style={styles.cameraClose}>✕</Text>
-                </TouchableOpacity>
-                <Text style={[
-                  styles.timer,
-                  timeLeft < 30 && styles.timerUrgent
-                ]}>
-                  {formatTime(timeLeft)}
-                </Text>
-                <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-                  <Text style={styles.cameraFlip}>⟳</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Goal badge */}
-              <View style={styles.cameraBadge}>
-                <Text style={styles.cameraBadgeText}>🎯 {goal.title}</Text>
-              </View>
-            </SafeAreaView>
-          </CameraView>
-
-          {/* Capture button */}
-          <View style={styles.captureRow}>
-            <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
-              <View style={styles.captureBtnInner} />
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        /* Photo review */
-        <SafeAreaView style={styles.reviewContainer}>
-          <Text style={styles.reviewTitle}>Looking good!</Text>
-          <View style={styles.reviewPhoto}>
-            <Text style={styles.reviewPhotoText}>📸</Text>
-          </View>
-          <View style={styles.reviewActions}>
-            <TouchableOpacity style={styles.retakeBtn} onPress={() => setPhoto(null)}>
-              <Text style={styles.retakeBtnText}>Retake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.submitBtn} onPress={submitCheckIn} disabled={isUploading}>
-              {isUploading ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={styles.submitBtnText}>Submit</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      )}
-    </View>
-  );
-}
-
-// ============================================
-// CREATE GOAL WITH AI
-// ============================================
-function CreateGoalScreen({
-  onBack,
-  onGoalCreated
-}: {
-  onBack: () => void;
-  onGoalCreated: (goal: Goal) => void;
-}) {
+function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoalCreated: (goal: Goal) => void }) {
+  const { theme } = useContext(ThemeContext);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: "What goal would you like to work on?\n\nYou can say something like:\n• \"I want to exercise more\"\n• \"Learn to play guitar\"\n• \"Read more books\""
-    }
+    { role: 'assistant', content: "What goal would you like to work on?\n\n• \"I want to exercise more\"\n• \"Learn to play guitar\"\n• \"Read more books\"" }
   ]);
   const [goalData, setGoalData] = useState<{ title?: string; isComplete?: boolean }>({});
   const scrollViewRef = useRef<ScrollView>(null);
@@ -508,69 +559,49 @@ function CreateGoalScreen({
       if (response.ok) {
         const data = await response.json();
         setConversation(prev => [...prev, { role: 'assistant', content: data.message }]);
-
         if (data.is_complete) {
-          // Extract goal title from conversation
-          const goalTitle = extractGoalTitle(data.message) || userMessage;
-          setGoalData({ title: goalTitle, isComplete: true });
+          const title = data.message.match(/🎯\s*(.+?)(?:\n|$)/i)?.[1] || userMessage;
+          setGoalData({ title: title.trim(), isComplete: true });
         }
       } else {
         throw new Error('API error');
       }
     } catch {
-      setConversation(prev => [...prev, {
-        role: 'assistant',
-        content: "Got it! Let me help you refine that. How often would you like to work on this goal?"
-      }]);
+      setConversation(prev => [...prev, { role: 'assistant', content: "How often would you like to work on this?" }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const extractGoalTitle = (text: string): string | null => {
-    // Look for goal definition patterns
-    const patterns = [
-      /🎯\s*(?:Your goal:?)?\s*(.+?)(?:\n|$)/i,
-      /goal:\s*(.+?)(?:\n|$)/i,
-    ];
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) return match[1].trim();
-    }
-    return null;
-  };
-
   const createGoal = () => {
     if (!goalData.title) return;
-
-    const newGoal: Goal = {
+    onGoalCreated({
       id: Date.now().toString(),
       title: goalData.title,
       category: 'general',
       current_streak: 0,
       frequency: 'daily',
       description: ''
-    };
+    });
+  };
 
-    onGoalCreated(newGoal);
+  const mdStyles = {
+    body: { color: theme.text, fontSize: 15, lineHeight: 22 },
+    strong: { fontWeight: '600' as const },
+    paragraph: { marginVertical: 4 },
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        {/* Header */}
-        <View style={styles.coachHeader}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={[styles.chatHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onBack}>
-            <Text style={styles.backText}>← Cancel</Text>
+            <Text style={[styles.backText, { color: theme.text }]}>← Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.coachHeaderTitle}>New Goal</Text>
+          <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>New Goal</Text>
           <View style={{ width: 50 }} />
         </View>
 
-        {/* Messages */}
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -580,16 +611,16 @@ function CreateGoalScreen({
           {conversation.map((msg, index) => (
             <View key={index} style={styles.messageBlock}>
               {msg.role === 'assistant' && (
-                <View style={styles.aiIndicator}>
+                <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
                   <Text style={styles.aiIndicatorText}>AI</Text>
                 </View>
               )}
               {msg.role === 'assistant' ? (
                 <View style={{ flex: 1 }}>
-                  <Markdown style={markdownStyles}>{msg.content}</Markdown>
+                  <Markdown style={mdStyles}>{msg.content}</Markdown>
                 </View>
               ) : (
-                <Text style={[styles.messageText, styles.userMessageText]}>
+                <Text style={[styles.userMessage, { color: theme.text, backgroundColor: theme.accent + '20' }]}>
                   {msg.content}
                 </Text>
               )}
@@ -598,34 +629,32 @@ function CreateGoalScreen({
 
           {isLoading && (
             <View style={styles.messageBlock}>
-              <View style={styles.aiIndicator}>
+              <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
                 <Text style={styles.aiIndicatorText}>AI</Text>
               </View>
-              <ActivityIndicator size="small" color="#37352F" />
+              <ActivityIndicator size="small" color={theme.accent} />
             </View>
           )}
 
-          {/* Create button when goal is ready */}
           {goalData.isComplete && (
-            <TouchableOpacity style={styles.createGoalButton} onPress={createGoal}>
-              <Text style={styles.createGoalButtonText}>✓ Create Goal</Text>
+            <TouchableOpacity style={[styles.createButton, { backgroundColor: theme.accent }]} onPress={createGoal}>
+              <Text style={styles.createButtonText}>✓ Create Goal</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
 
-        {/* Input */}
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.bgSecondary, color: theme.text }]}
             placeholder="Describe your goal..."
-            placeholderTextColor="#A5A5A5"
+            placeholderTextColor={theme.textSecondary}
             value={message}
             onChangeText={setMessage}
             onSubmitEditing={sendMessage}
             returnKeyType="send"
           />
           <TouchableOpacity
-            style={[styles.sendBtn, !message.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, { backgroundColor: theme.accent }, !message.trim() && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!message.trim() || isLoading}
           >
@@ -638,10 +667,99 @@ function CreateGoalScreen({
 }
 
 // ============================================
+// CHECK-IN SCREEN (Camera)
+// ============================================
+function CheckInScreen({ goal, onBack, onComplete }: { goal: Goal; onBack: () => void; onComplete: () => void }) {
+  const { theme } = useContext(ThemeContext);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState<CameraType>('back');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const cameraRef = useRef<CameraView>(null);
+
+  const takePhoto = async () => {
+    if (cameraRef.current) {
+      const result = await cameraRef.current.takePictureAsync();
+      if (result) setPhoto(result.uri);
+    }
+  };
+
+  const submitCheckIn = async () => {
+    setIsUploading(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsUploading(false);
+    Alert.alert('✓ Check-in complete', `Your streak is now ${goal.current_streak + 1} days!`, [{ text: 'Done', onPress: onComplete }]);
+  };
+
+  if (!permission) return <View style={styles.cameraContainer}><ActivityIndicator /></View>;
+
+  if (!permission.granted) {
+    return (
+      <SafeAreaView style={[styles.cameraContainer, { backgroundColor: theme.bg }]}>
+        <Text style={[styles.permissionText, { color: theme.text }]}>Camera access is needed</Text>
+        <TouchableOpacity style={[styles.permissionButton, { backgroundColor: theme.accent }]} onPress={requestPermission}>
+          <Text style={styles.permissionButtonText}>Grant Permission</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onBack}>
+          <Text style={{ color: theme.textSecondary }}>Go back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={styles.cameraContainer}>
+      {!photo ? (
+        <>
+          <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
+            <SafeAreaView style={styles.cameraOverlay}>
+              <View style={styles.cameraTopBar}>
+                <TouchableOpacity onPress={onBack}>
+                  <Text style={styles.cameraClose}>✕</Text>
+                </TouchableOpacity>
+                <View style={styles.goalBadge}>
+                  <Text style={styles.goalBadgeText}>🎯 {goal.title}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
+                  <Text style={styles.cameraFlip}>⟳</Text>
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+          </CameraView>
+          <View style={styles.captureRow}>
+            <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
+              <View style={styles.captureBtnInner} />
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <SafeAreaView style={[styles.reviewContainer, { backgroundColor: theme.bg }]}>
+          <Text style={[styles.reviewTitle, { color: theme.text }]}>Looking good!</Text>
+          <View style={[styles.reviewPhoto, { backgroundColor: theme.bgSecondary }]}>
+            <Text style={{ fontSize: 64 }}>📸</Text>
+          </View>
+          <View style={styles.reviewActions}>
+            <TouchableOpacity style={[styles.retakeBtn, { borderColor: theme.border }]} onPress={() => setPhoto(null)}>
+              <Text style={{ color: theme.text }}>Retake</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: theme.accent }]} onPress={submitCheckIn} disabled={isUploading}>
+              {isUploading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Submit</Text>}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      )}
+    </View>
+  );
+}
+
+// ============================================
 // MAIN APP
 // ============================================
 export default function App() {
-  const [screen, setScreen] = useState<'home' | 'goal' | 'coach' | 'checkin' | 'create'>('home');
+  const systemScheme = useColorScheme();
+  const [isDark, setIsDark] = useState(systemScheme === 'dark');
+  const [tab, setTab] = useState('home');
+  const [screen, setScreen] = useState<'tabs' | 'goal' | 'coach' | 'checkin' | 'create'>('tabs');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [goals, setGoals] = useState<Goal[]>([
     { id: '1', title: 'Run 3x per week', category: 'fitness', current_streak: 12, frequency: 'daily', description: '' },
@@ -649,594 +767,207 @@ export default function App() {
     { id: '3', title: 'Meditate daily', category: 'wellness', current_streak: 3, frequency: 'daily', description: '' },
   ]);
 
+  const theme = isDark ? darkTheme : lightTheme;
+
   if (screen === 'create') {
     return (
-      <CreateGoalScreen
-        onBack={() => setScreen('home')}
-        onGoalCreated={(newGoal) => {
-          setGoals(prev => [...prev, newGoal]);
-          setSelectedGoal(newGoal);
-          setScreen('goal');
-        }}
-      />
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <CreateGoalScreen
+          onBack={() => setScreen('tabs')}
+          onGoalCreated={(newGoal) => {
+            setGoals(prev => [...prev, newGoal]);
+            setSelectedGoal(newGoal);
+            setScreen('goal');
+          }}
+        />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </ThemeContext.Provider>
     );
   }
 
   if (screen === 'checkin' && selectedGoal) {
     return (
-      <CheckInScreen
-        goal={selectedGoal}
-        onBack={() => setScreen('goal')}
-        onComplete={() => setScreen('home')}
-      />
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <CheckInScreen goal={selectedGoal} onBack={() => setScreen('goal')} onComplete={() => setScreen('tabs')} />
+        <StatusBar style="light" />
+      </ThemeContext.Provider>
     );
   }
 
   if (screen === 'coach' && selectedGoal) {
-    return <AICoachScreen goal={selectedGoal} onBack={() => setScreen('goal')} />;
+    return (
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <AICoachScreen goal={selectedGoal} onBack={() => setScreen('goal')} />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </ThemeContext.Provider>
+    );
   }
 
   if (screen === 'goal' && selectedGoal) {
     return (
-      <GoalDetailScreen
-        goal={selectedGoal}
-        onBack={() => setScreen('home')}
-        onAskCoach={() => setScreen('coach')}
-        onCheckIn={() => setScreen('checkin')}
-      />
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <GoalDetailScreen
+          goal={selectedGoal}
+          onBack={() => setScreen('tabs')}
+          onAskCoach={() => setScreen('coach')}
+          onCheckIn={() => setScreen('checkin')}
+        />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </ThemeContext.Provider>
     );
   }
 
   return (
-    <HomeScreen
-      onGoalPress={(goal) => { setSelectedGoal(goal); setScreen('goal'); }}
-      onAddGoal={() => setScreen('create')}
-      onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
-    />
+    <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+        {tab === 'home' && (
+          <HomeScreen
+            goals={goals}
+            onGoalPress={(goal) => { setSelectedGoal(goal); setScreen('goal'); }}
+            onAddGoal={() => setScreen('create')}
+            onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
+          />
+        )}
+        {tab === 'feed' && <FeedScreen />}
+        {tab === 'settings' && <SettingsScreen />}
+        <TabBar activeTab={tab} onTabPress={setTab} />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </SafeAreaView>
+    </ThemeContext.Provider>
   );
 }
 
 // ============================================
-// NOTION-INSPIRED STYLES
+// STYLES
 // ============================================
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
-  // Typography - Notion style
-  greeting: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#37352F',
-    marginTop: 32,
-    marginBottom: 32,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
+  // Tab bar
+  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 8, paddingBottom: 8 },
+  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  tabIcon: { fontSize: 22, opacity: 0.5 },
+  tabLabel: { fontSize: 11, marginTop: 4 },
+
+  // Typography
+  greeting: { fontSize: 32, fontWeight: '700', marginTop: 20, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+  subGreeting: { fontSize: 15, marginTop: 4 },
+  pageTitle: { fontSize: 28, fontWeight: '700', marginTop: 20, marginBottom: 8, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+  sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 1, marginBottom: 12, marginTop: 24 },
+  blockTitle: { fontSize: 16, fontWeight: '600', marginTop: 24, marginBottom: 16 },
 
   // Sections
-  section: {
-    marginBottom: 32,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#9B9A97',
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
+  section: { marginBottom: 16 },
 
-  // Todo items
-  todoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F1EF',
-  },
-  todoCheckbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#D3D3D3',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: 'transparent',
-  },
-  todoContent: {
-    flex: 1,
-  },
-  todoTitle: {
-    fontSize: 16,
-    color: '#37352F',
-    marginBottom: 2,
-  },
-  todoMeta: {
-    fontSize: 13,
-    color: '#9B9A97',
-  },
-  progressPill: {
-    backgroundColor: '#F1F1EF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  progressPillText: {
-    fontSize: 12,
-    color: '#37352F',
-    fontWeight: '500',
-  },
+  // Goal cards
+  goalCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, marginRight: 14, justifyContent: 'center', alignItems: 'center' },
+  checkboxInner: { width: 10, height: 10, borderRadius: 3, opacity: 0 },
+  goalContent: { flex: 1 },
+  goalTitle: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
+  goalMeta: { fontSize: 13 },
+  streakBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  streakText: { fontSize: 12, fontWeight: '600' },
 
-  // Add new
-  addNew: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  addNewIcon: {
-    fontSize: 18,
-    color: '#9B9A97',
-    marginRight: 8,
-  },
-  addNewText: {
-    fontSize: 15,
-    color: '#9B9A97',
-  },
+  // Add button
+  addButton: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  addButtonText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
 
-  // Community
-  communityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#F7F6F3',
-    borderRadius: 8,
-  },
-  communityText: {
-    fontSize: 14,
-    color: '#37352F',
-  },
-  communityArrow: {
-    fontSize: 16,
-    color: '#9B9A97',
-  },
+  // Feed
+  feedCard: { borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
+  feedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
+  feedUser: { flexDirection: 'row', alignItems: 'center' },
+  feedAvatar: { fontSize: 32, marginRight: 10 },
+  feedUserName: { fontSize: 15, fontWeight: '600' },
+  feedGoal: { fontSize: 13 },
+  feedStreak: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  feedStreakText: { fontSize: 12, fontWeight: '600' },
+  feedImagePlaceholder: { height: 200, justifyContent: 'center', alignItems: 'center' },
+  feedCaption: { fontSize: 15, padding: 14, paddingTop: 10 },
+  feedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, paddingTop: 0 },
+  likeButton: { padding: 4 },
+  feedTime: { fontSize: 12 },
 
-  // Back button
-  backRow: {
-    paddingVertical: 16,
-  },
-  backText: {
-    fontSize: 15,
-    color: '#37352F',
-  },
-
-  // Page title
-  pageTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#37352F',
-    marginBottom: 24,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
+  // Settings
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  settingInfo: { flex: 1, marginRight: 16 },
+  settingTitle: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
+  settingDesc: { fontSize: 13 },
+  logoutButton: { borderWidth: 1, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 24 },
+  logoutText: { fontSize: 15, fontWeight: '600' },
 
   // Properties
-  propertyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  propertyLabel: {
-    width: 80,
-    fontSize: 14,
-    color: '#9B9A97',
-  },
-  propertyValue: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  propertyValueText: {
-    fontSize: 14,
-    color: '#37352F',
-  },
-  progressTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: '#F1F1EF',
-    borderRadius: 3,
-    marginRight: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#2EAADC',
-    borderRadius: 3,
-  },
-  progressPercent: {
-    fontSize: 13,
-    color: '#37352F',
-    width: 40,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F1EF',
-    marginVertical: 20,
-  },
-
-  // Block title
-  blockTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#37352F',
-    marginBottom: 16,
-  },
+  propertyCard: { borderRadius: 12, borderWidth: 1, padding: 16, marginTop: 16 },
+  propertyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  propertyLabel: { width: 80, fontSize: 14 },
+  propertyValue: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  propertyValueText: { fontSize: 14 },
+  progressTrack: { flex: 1, height: 6, borderRadius: 3, marginRight: 8 },
+  progressFill: { height: '100%', borderRadius: 3 },
+  progressPercent: { fontSize: 13, width: 40 },
+  divider: { height: 1, marginVertical: 8 },
 
   // Week grid
-  weekGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  weekDay: {
-    alignItems: 'center',
-  },
-  weekDayCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  weekDayComplete: {
-    backgroundColor: '#2EAADC',
-    borderColor: '#2EAADC',
-  },
-  weekDayToday: {
-    borderColor: '#37352F',
-    borderWidth: 2,
-  },
-  weekDayCheck: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  weekDayLabel: {
-    fontSize: 12,
-    color: '#9B9A97',
-  },
+  weekGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  weekDay: { alignItems: 'center' },
+  weekDayCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  weekDayCheck: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  weekDayLabel: { fontSize: 12 },
 
   // Action buttons
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2EAADC',
-    paddingVertical: 14,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  actionButtonIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  actionButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  actionButtonSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F7F6F3',
-    paddingVertical: 14,
-    borderRadius: 8,
-  },
-  actionButtonTextSecondary: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#37352F',
-  },
+  actionButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  actionButtonText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
+  actionButtonSecondary: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 10, borderWidth: 1 },
+  actionButtonTextSecondary: { fontSize: 15, fontWeight: '600' },
 
-  // Coach header
-  coachHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F1EF',
-  },
-  coachHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#37352F',
-  },
-  contextBar: {
-    backgroundColor: '#F7F6F3',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  contextText: {
-    fontSize: 13,
-    color: '#37352F',
-  },
-  messagesContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  messageBlock: {
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-    maxWidth: '100%',
-  },
-  aiIndicator: {
-    backgroundColor: '#F7F6F3',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginRight: 10,
-    marginTop: 2,
-  },
-  aiIndicatorText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#9B9A97',
-  },
-  messageText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#37352F',
-    lineHeight: 22,
-  },
-  userMessageText: {
-    backgroundColor: '#F7F6F3',
-    padding: 12,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F1EF',
-    backgroundColor: '#FFFFFF',
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: '#37352F',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#F7F6F3',
-    borderRadius: 8,
-  },
-  sendBtn: {
-    marginLeft: 8,
-    backgroundColor: '#2EAADC',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  sendBtnDisabled: {
-    backgroundColor: '#E0E0E0',
-  },
-  sendBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  // Back
+  backRow: { paddingVertical: 16 },
+  backText: { fontSize: 15 },
 
-  // Camera styles
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-  },
-  cameraOverlay: {
-    flex: 1,
-  },
-  cameraTopBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-  },
-  cameraClose: {
-    color: '#FFF',
-    fontSize: 28,
-    fontWeight: '300',
-  },
-  timer: {
-    color: '#FFF',
-    fontSize: 48,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  timerUrgent: {
-    color: '#FF3B30',
-  },
-  cameraFlip: {
-    color: '#FFF',
-    fontSize: 28,
-  },
-  cameraBadge: {
-    alignSelf: 'center',
-    marginTop: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  cameraBadgeText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  captureRow: {
-    position: 'absolute',
-    bottom: 50,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  captureBtn: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    borderColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  captureBtnInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFF',
-  },
+  // Chat
+  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  chatHeaderTitle: { fontSize: 16, fontWeight: '600' },
+  contextBar: { paddingHorizontal: 16, paddingVertical: 10 },
+  contextText: { fontSize: 13 },
+  messagesContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  messageBlock: { marginBottom: 16, flexDirection: 'row', alignItems: 'flex-start', flex: 1, maxWidth: '100%' },
+  aiIndicator: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginRight: 10, marginTop: 2 },
+  aiIndicatorText: { fontSize: 11, fontWeight: '600', color: '#666' },
+  userMessage: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginLeft: 'auto', maxWidth: '80%' },
+  inputBar: { flexDirection: 'row', padding: 12, borderTopWidth: 1, alignItems: 'center' },
+  input: { flex: 1, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, fontSize: 15 },
+  sendBtn: { marginLeft: 10, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
+  sendBtnDisabled: { opacity: 0.5 },
+  sendBtnText: { color: '#FFF', fontWeight: '600' },
 
-  // Review
-  reviewContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reviewTitle: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 24,
-  },
-  reviewPhoto: {
-    width: SCREEN_WIDTH - 80,
-    height: SCREEN_WIDTH - 80,
-    backgroundColor: '#333',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  reviewPhotoText: {
-    fontSize: 64,
-  },
-  reviewActions: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  retakeBtn: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
-  retakeBtnText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  submitBtn: {
-    paddingHorizontal: 40,
-    paddingVertical: 14,
-    borderRadius: 30,
-    backgroundColor: '#2EAADC',
-    minWidth: 120,
-    alignItems: 'center',
-  },
-  submitBtnText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  // Create goal
+  createButton: { padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  createButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+
+  // Camera
+  cameraContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+  camera: { flex: 1, width: '100%' },
+  cameraOverlay: { flex: 1 },
+  cameraTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+  cameraClose: { color: '#FFF', fontSize: 28 },
+  cameraFlip: { color: '#FFF', fontSize: 28 },
+  goalBadge: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  goalBadgeText: { color: '#FFF', fontSize: 14 },
+  captureRow: { position: 'absolute', bottom: 50, width: '100%', alignItems: 'center' },
+  captureBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
+  captureBtnInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
+  reviewContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  reviewTitle: { fontSize: 24, fontWeight: '700', marginBottom: 24 },
+  reviewPhoto: { width: 200, height: 200, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
+  reviewActions: { flexDirection: 'row', gap: 16 },
+  retakeBtn: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
+  submitBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
+  submitBtnText: { color: '#FFF', fontWeight: '600' },
 
   // Permission
-  permissionText: {
-    color: '#FFF',
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  permissionButton: {
-    backgroundColor: '#2EAADC',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  permissionButtonText: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
-  permissionBack: {
-    color: '#9B9A97',
-    fontSize: 14,
-  },
-
-  // Create Goal
-  createGoalButton: {
-    backgroundColor: '#2EAADC',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
-    alignItems: 'center' as const,
-  },
-  createGoalButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600' as const,
-  },
+  permissionText: { fontSize: 16, marginBottom: 20, textAlign: 'center', paddingHorizontal: 40 },
+  permissionButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginBottom: 16 },
+  permissionButtonText: { color: '#FFF', fontWeight: '600' },
 });
-
-// Markdown styles for AI responses
-const markdownStyles = {
-  body: {
-    color: '#37352F',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  strong: {
-    fontWeight: '600' as const,
-    color: '#37352F',
-  },
-  bullet_list: {
-    marginVertical: 4,
-  },
-  ordered_list: {
-    marginVertical: 4,
-  },
-  list_item: {
-    marginVertical: 2,
-  },
-  paragraph: {
-    marginVertical: 4,
-  },
-};
