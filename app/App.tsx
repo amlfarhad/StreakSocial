@@ -763,7 +763,7 @@ function CheckInScreen({ goal, onBack, onComplete }: { goal: Goal; onBack: () =>
 export default function App() {
   const systemScheme = useColorScheme();
   const [isDark, setIsDark] = useState(systemScheme === 'dark');
-  const [tab, setTab] = useState('home');
+  const [tab, setTab] = useState('feed');
   const [screen, setScreen] = useState<'tabs' | 'goal' | 'coach' | 'checkin' | 'create'>('tabs');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [goals, setGoals] = useState<Goal[]>([
@@ -824,20 +824,22 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        {tab === 'home' && (
-          <HomeScreen
-            goals={goals}
-            onGoalPress={(goal) => { setSelectedGoal(goal); setScreen('goal'); }}
-            onAddGoal={() => setScreen('create')}
-            onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
-          />
-        )}
-        {tab === 'feed' && <FeedScreen />}
-        {tab === 'settings' && <SettingsScreen />}
+      <View style={[styles.container, { backgroundColor: theme.bg }]}>
+        <SafeAreaView style={{ flex: 1 }}>
+          {tab === 'home' && (
+            <HomeScreen
+              goals={goals}
+              onGoalPress={(goal) => { setSelectedGoal(goal); setScreen('goal'); }}
+              onAddGoal={() => setScreen('create')}
+              onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
+            />
+          )}
+          {tab === 'feed' && <FeedScreen />}
+          {tab === 'settings' && <SettingsScreen />}
+        </SafeAreaView>
         <TabBar activeTab={tab} onTabPress={setTab} />
         <StatusBar style={isDark ? 'light' : 'dark'} />
-      </SafeAreaView>
+      </View>
     </ThemeContext.Provider>
   );
 }
