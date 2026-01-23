@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
   // Tab bar
-  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 8, paddingBottom: 8 },
+  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingTop: 12, paddingBottom: 34 },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   tabIcon: { fontSize: 22, opacity: 0.5 },
   tabLabel: { fontSize: 11, marginTop: 4 },
