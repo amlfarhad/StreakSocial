@@ -4,21 +4,47 @@ Tracks all AI interactions for evaluation and monitoring
 """
 import os
 from functools import wraps
+import threading
+
+# Thread-local storage for trace IDs
+_trace_storage = threading.local()
 
 # Check if Opik API key is configured
 OPIK_API_KEY = os.getenv("OPIK_API_KEY")
+
+# Project name for Opik dashboard
+OPIK_PROJECT_NAME = "Encode Hack"
 
 # Initialize Opik only if API key is provided
 if OPIK_API_KEY and OPIK_API_KEY != "your-opik-api-key-here":
     try:
         import opik
-        from opik import track, opik_context
+        from opik import opik_context
+        from opik import track as opik_track
         
         # Set environment variables for Opik (non-interactive configuration)
         os.environ.setdefault("OPIK_URL_OVERRIDE", "https://www.comet.com/opik/api")
+        os.environ.setdefault("OPIK_PROJECT_NAME", OPIK_PROJECT_NAME)
+        
+        # Custom track decorator that captures trace ID
+        def track(*args, **kwargs):
+            # Always set project name
+            kwargs.setdefault("project_name", OPIK_PROJECT_NAME)
+            
+            def decorator(func):
+                # Apply Opik's track decorator
+                tracked_func = opik_track(*args, **kwargs)(func)
+                
+                @wraps(func)
+                def wrapper(*a, **kw):
+                    # Execute the tracked function
+                    result = tracked_func(*a, **kw)
+                    return result
+                return wrapper
+            return decorator
         
         OPIK_ENABLED = True
-        print("✅ Opik observability enabled")
+        print(f"✅ Opik observability enabled (project: {OPIK_PROJECT_NAME})")
     except ImportError as e:
         OPIK_ENABLED = False
         print(f"⚠️ Opik not installed: {e}")
@@ -90,10 +116,19 @@ def log_feedback(trace_id: str, score: float, comment: str = None):
 
 
 def get_current_trace_id():
-    """Get the current trace ID if within a tracked context"""
-    if not OPIK_ENABLED or opik_context is None:
+    """Get the current trace ID from thread-local storage"""
+    if not OPIK_ENABLED:
         return None
     try:
-        return opik_context.get_current_trace_data().id
+        # First try thread-local storage (set by our custom decorator)
+        trace_id = getattr(_trace_storage, 'trace_id', None)
+        if trace_id:
+            return trace_id
+        # Fallback to opik_context
+        if opik_context:
+            trace_data = opik_context.get_current_trace_data()
+            if trace_data:
+                return trace_data.id
+        return None
     except:
         return None

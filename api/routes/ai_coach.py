@@ -159,3 +159,95 @@ async def submit_feedback(request: FeedbackRequest):
             message="Failed to log feedback"
         )
 
+
+# ============================================
+# AGENTIC ENDPOINTS
+# ============================================
+
+class AgenticChatResponse(BaseModel):
+    message: str
+    tool_calls: list = []
+    is_agentic: bool = False
+    trace_id: Optional[str] = None
+
+
+@router.post("/agentic-chat", response_model=AgenticChatResponse)
+async def agentic_chat_endpoint(request: ChatRequest):
+    """
+    Agentic AI coach with tool-calling capabilities.
+    Can break down goals, analyze patterns, and suggest actions.
+    """
+    from ai.agent import agentic_chat
+    from ai.opik_config import get_current_trace_id
+    from routes.goals import goals_db
+    
+    goal_title = request.goal_title or "your goal"
+    streak = request.streak or 0
+    
+    goal = goals_db.get(request.goal_id)
+    if goal:
+        goal_title = goal.title
+        streak = goal.current_streak
+    
+    history = []
+    if request.history:
+        for msg in request.history:
+            history.append({
+                "role": msg.role,
+                "content": msg.content
+            })
+    
+    result = agentic_chat(
+        message=request.message,
+        goal_title=goal_title,
+        streak=streak,
+        history=history
+    )
+    
+    trace_id = get_current_trace_id()
+    
+    return AgenticChatResponse(
+        message=result["message"],
+        tool_calls=result.get("tool_calls", []),
+        is_agentic=result.get("is_agentic", False),
+        trace_id=trace_id
+    )
+
+
+class GoalPlanRequest(BaseModel):
+    goal_description: str
+    timeframe: Optional[str] = "30 days"
+
+
+class GoalPlanResponse(BaseModel):
+    summary: str
+    milestones: list
+    daily_habit: str
+    success_metrics: list
+    tips: list
+    trace_id: Optional[str] = None
+
+
+@router.post("/plan-goal", response_model=GoalPlanResponse)
+async def plan_goal_endpoint(request: GoalPlanRequest):
+    """
+    Generate an agentic goal breakdown with milestones and daily actions.
+    """
+    from ai.agent import create_goal_plan
+    from ai.opik_config import get_current_trace_id
+    
+    plan = create_goal_plan(
+        goal_description=request.goal_description,
+        timeframe=request.timeframe
+    )
+    
+    trace_id = get_current_trace_id()
+    
+    return GoalPlanResponse(
+        summary=plan.get("summary", ""),
+        milestones=plan.get("milestones", []),
+        daily_habit=plan.get("daily_habit", ""),
+        success_metrics=plan.get("success_metrics", []),
+        tips=plan.get("tips", []),
+        trace_id=trace_id
+    )
