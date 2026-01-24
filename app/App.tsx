@@ -24,7 +24,8 @@ import { supabase } from './lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const API_URL = 'http://192.168.177.207:8000';
+// Use environment variable for production, fallback to local for dev
+const API_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
 
 // ============================================
 // THEME SYSTEM
@@ -1009,10 +1010,7 @@ function CheckInScreen({
     setStage('verifying');
 
     try {
-      // Call AI to verify the photo matches the goal
-      const API_BASE = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
-
-      const response = await fetch(`${API_BASE}/ai/verify-checkin`, {
+      const response = await fetch(`${API_URL}/ai/verify-checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
