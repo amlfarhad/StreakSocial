@@ -11,6 +11,7 @@ A social goal accountability app with AI coaching. Combines Notion-style product
 - 🔥 **Streak Tracking** — Build momentum with visual streak counters
 - 📸 **Social Feed** — See community check-ins and stay motivated
 - 🌓 **Dark/Light Mode** — Beautiful warm theme with toggle
+- 📊 **LLM Observability** — Full tracing and evaluation via Opik
 
 ## Tech Stack
 
@@ -18,6 +19,7 @@ A social goal accountability app with AI coaching. Combines Notion-style product
 - **Backend**: Python + FastAPI
 - **Auth**: Supabase
 - **AI**: Google Gemini 2.5
+- **Observability**: Opik by Comet
 
 ## Quick Start
 
@@ -60,3 +62,28 @@ Scan QR code with Expo Go on your phone.
 
 - **Gemini**: [aistudio.google.com](https://aistudio.google.com)
 - **Supabase**: [supabase.com](https://supabase.com)
+- **Opik** (optional): [comet.com/opik](https://www.comet.com/signup?from=llm)
+
+## LLM Observability with Opik
+
+All AI interactions are tracked via [Opik](https://www.comet.com/docs/opik/) for evaluation and monitoring:
+
+### What's Tracked
+- 📝 **AI Coach conversations** — Full message history, goal context, response latency
+- 🎯 **Goal refinement** — Multi-turn refinement flow, completion detection
+- 📷 **Photo analysis** — Vision model confidence scores, relevance detection
+
+### Human-in-the-Loop Feedback
+Users can rate AI responses via the `/ai/feedback` endpoint:
+```bash
+curl -X POST http://localhost:8000/ai/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"trace_id": "...", "score": 0.9, "comment": "Very helpful!"}'
+```
+
+### Dashboard
+View all traces at [comet.com/opik](https://www.comet.com/opik) to:
+- Review conversation quality
+- Identify areas for prompt improvement
+- Track user satisfaction scores
+

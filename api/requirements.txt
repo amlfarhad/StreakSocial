@@ -5,3 +5,4 @@ google-generativeai==0.8.0
 supabase==2.3.0
 Pillow>=10.4.0
 python-multipart==0.0.6
+opik>=1.0.0

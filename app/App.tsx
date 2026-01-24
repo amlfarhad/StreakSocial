@@ -497,6 +497,20 @@ function SettingsScreen() {
         </View>
       </View>
 
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>HEALTH DISCLAIMER</Text>
+
+        <View style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary, lineHeight: 20 }]}>
+              ⚕️ This app is not a substitute for professional medical, mental health, or fitness advice.
+              Always consult qualified healthcare providers for personalized guidance.
+              If you're in crisis, please contact emergency services or a crisis helpline.
+            </Text>
+          </View>
+        </View>
+      </View>
+
       <TouchableOpacity
         style={[styles.logoutButton, { borderColor: theme.accent }]}
         onPress={async () => {
@@ -596,7 +610,7 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
   const [conversation, setConversation] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: `I'm your coach for "${goal.title}".\n\nYou're on a ${goal.current_streak} day streak — keep it up!\n\nHow can I help you today?`
+      content: `I'm your coach for "${goal.title}".\n\nYou're on a ${goal.current_streak} day streak — keep it up!\n\nHow can I help you today?\n\n_Note: I'm an AI assistant, not a medical professional. For health concerns, please consult a qualified provider._`
     }
   ]);
   const scrollViewRef = useRef<ScrollView>(null);
