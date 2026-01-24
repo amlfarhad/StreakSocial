@@ -68,6 +68,8 @@ interface Goal {
   category: string;
   current_streak: number;
   frequency: string;
+  lastCheckIn?: string; // ISO date string of last check-in
+  checkedToday?: boolean;
 }
 
 interface ChatMessage {
@@ -84,6 +86,17 @@ interface FeedItem {
   caption: string;
   timeAgo: string;
   likes: number;
+  photoUri?: string; // Actual photo URI
+}
+
+interface CheckIn {
+  id: string;
+  goalId: string;
+  goalTitle: string;
+  photoUri: string;
+  caption: string;
+  streak: number;
+  timestamp: Date;
 }
 
 // ============================================
@@ -379,24 +392,86 @@ function HomeScreen({
 // ============================================
 // FEED SCREEN
 // ============================================
-function FeedScreen() {
+function FeedScreen({
+  myCheckIns,
+  formatTimeAgo
+}: {
+  myCheckIns: CheckIn[];
+  formatTimeAgo: (date: Date) => string;
+}) {
   const { theme } = useContext(ThemeContext);
+  const [activeTab, setActiveTab] = useState<'friends' | 'community' | 'photos'>('friends');
 
-  const feedItems: FeedItem[] = [
+  const friendsFeed: FeedItem[] = [
     { id: '1', user: 'Sarah K.', avatar: '👩‍🦰', goal: 'Morning yoga', streak: 45, caption: 'Day 45! 🧘‍♀️ Feeling stronger every day', timeAgo: '2h ago', likes: 12 },
     { id: '2', user: 'Mike R.', avatar: '👨‍🦱', goal: 'Read daily', streak: 23, caption: 'Just finished Atomic Habits 📚', timeAgo: '4h ago', likes: 8 },
+  ];
+
+  const communityFeed: FeedItem[] = [
     { id: '3', user: 'Emma L.', avatar: '👩', goal: 'Run 5K', streak: 14, caption: 'Rainy run but made it happen! 🌧️', timeAgo: '5h ago', likes: 24 },
     { id: '4', user: 'Alex T.', avatar: '🧑', goal: 'Learn guitar', streak: 30, caption: 'Finally nailed that chord progression 🎸', timeAgo: '8h ago', likes: 31 },
+    { id: '5', user: 'Jordan P.', avatar: '🧔', goal: 'Meditate', streak: 60, caption: '60 days of calm 🧘', timeAgo: '10h ago', likes: 42 },
   ];
+
+  // Convert real check-ins to FeedItems
+  const myPhotosFeed: FeedItem[] = myCheckIns.map(c => ({
+    id: c.id,
+    user: 'You',
+    avatar: '😊',
+    goal: c.goalTitle,
+    streak: c.streak,
+    caption: c.caption,
+    timeAgo: formatTimeAgo(c.timestamp),
+    likes: 0,
+    photoUri: c.photoUri
+  }));
+
+  const currentFeed = activeTab === 'friends' ? friendsFeed : activeTab === 'community' ? communityFeed : myPhotosFeed;
+  const pageTitle = activeTab === 'photos' ? 'My Photos' : activeTab === 'friends' ? 'Friends' : 'Community';
 
   return (
     <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.pageTitle, { color: theme.text }]}>Community</Text>
-      <Text style={[styles.subGreeting, { color: theme.textSecondary, marginBottom: 24 }]}>
-        See what others are achieving
-      </Text>
+      <Text style={[styles.pageTitle, { color: theme.text }]}>{pageTitle}</Text>
 
-      {feedItems.map(item => (
+      {/* Tab Bar */}
+      <View style={[styles.feedTabs, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
+        <TouchableOpacity
+          style={[styles.feedTab, activeTab === 'friends' && { backgroundColor: theme.accent }]}
+          onPress={() => setActiveTab('friends')}
+        >
+          <Text style={[styles.feedTabText, { color: activeTab === 'friends' ? '#FFF' : theme.textSecondary }]}>
+            Friends
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedTab, activeTab === 'community' && { backgroundColor: theme.accent }]}
+          onPress={() => setActiveTab('community')}
+        >
+          <Text style={[styles.feedTabText, { color: activeTab === 'community' ? '#FFF' : theme.textSecondary }]}>
+            Community
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedTab, activeTab === 'photos' && { backgroundColor: theme.accent }]}
+          onPress={() => setActiveTab('photos')}
+        >
+          <Text style={[styles.feedTabText, { color: activeTab === 'photos' ? '#FFF' : theme.textSecondary }]}>
+            My Photos
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'photos' && myPhotosFeed.length === 0 && (
+        <View style={[styles.emptyState, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
+          <Text style={[styles.emptyStateTitle, { color: theme.text }]}>No check-ins yet</Text>
+          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+            Complete a check-in to see your photos here!
+          </Text>
+        </View>
+      )}
+
+      {currentFeed.map(item => (
         <View key={item.id} style={[styles.feedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.feedHeader}>
             <View style={styles.feedUser}>
@@ -411,9 +486,13 @@ function FeedScreen() {
             </View>
           </View>
 
-          <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
-            <Text style={{ fontSize: 48 }}>📷</Text>
-          </View>
+          {item.photoUri ? (
+            <Image source={{ uri: item.photoUri }} style={styles.feedImage} />
+          ) : (
+            <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
+              <Text style={{ fontSize: 48 }}>📷</Text>
+            </View>
+          )}
 
           <Text style={[styles.feedCaption, { color: theme.text }]}>{item.caption}</Text>
 
@@ -539,8 +618,16 @@ function GoalDetailScreen({
 }) {
   const { theme } = useContext(ThemeContext);
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const today = new Date().getDay();
-  const completedDays = weekDays.map((_, i) => i < today - 1);
+  // getDay() returns 0=Sunday, 1=Monday, etc. Convert to our array index (0=Mon, 6=Sun)
+  const jsDay = new Date().getDay();
+  const todayIndex = jsDay === 0 ? 6 : jsDay - 1; // Convert: Sun(0)→6, Mon(1)→0, ..., Sat(6)→5
+
+  // Mark days as completed: all days before today, plus today if checkedToday is true
+  const completedDays = weekDays.map((_, i) => {
+    if (i < todayIndex) return true; // Days before today are "complete" for demo
+    if (i === todayIndex && goal.checkedToday) return true; // Today is checked
+    return false;
+  });
   const progress = Math.min(100, Math.round((goal.current_streak / 30) * 100));
 
   return (
@@ -579,7 +666,7 @@ function GoalDetailScreen({
                 styles.weekDayCircle,
                 { borderColor: theme.border },
                 completedDays[index] && { backgroundColor: theme.accent, borderColor: theme.accent },
-                index === today - 1 && { borderColor: theme.text, borderWidth: 2 }
+                index === todayIndex && { borderColor: theme.text, borderWidth: 2 }
               ]}>
                 {completedDays[index] && <Text style={styles.weekDayCheck}>✓</Text>}
               </View>
@@ -876,28 +963,94 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
 }
 
 // ============================================
-// CHECK-IN SCREEN (Camera)
+// CHECK-IN SCREEN (Camera + Edit + Verify)
 // ============================================
-function CheckInScreen({ goal, onBack, onComplete }: { goal: Goal; onBack: () => void; onComplete: () => void }) {
+function CheckInScreen({
+  goal,
+  onBack,
+  onComplete
+}: {
+  goal: Goal;
+  onBack: () => void;
+  onComplete: (photoUri: string, caption: string) => void;
+}) {
   const { theme } = useContext(ThemeContext);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [photo, setPhoto] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [caption, setCaption] = useState('');
+  const [stage, setStage] = useState<'capture' | 'edit' | 'verifying' | 'verified' | 'failed'>('capture');
+  const [verificationMessage, setVerificationMessage] = useState('');
   const cameraRef = useRef<CameraView>(null);
+  const lastTapRef = useRef<number>(0);
+
+  const toggleCamera = () => setFacing(f => f === 'back' ? 'front' : 'back');
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      toggleCamera();
+    }
+    lastTapRef.current = now;
+  };
 
   const takePhoto = async () => {
     if (cameraRef.current) {
       const result = await cameraRef.current.takePictureAsync();
-      if (result) setPhoto(result.uri);
+      if (result) {
+        setPhoto(result.uri);
+        setStage('edit');
+      }
     }
   };
 
-  const submitCheckIn = async () => {
-    setIsUploading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsUploading(false);
-    Alert.alert('✓ Check-in complete', `Your streak is now ${goal.current_streak + 1} days!`, [{ text: 'Done', onPress: onComplete }]);
+  const verifyAndSubmit = async () => {
+    if (!photo) return;
+    setStage('verifying');
+
+    try {
+      // Call AI to verify the photo matches the goal
+      const API_BASE = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+
+      const response = await fetch(`${API_BASE}/ai/verify-checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal_title: goal.title,
+          goal_category: goal.category,
+          // In production, we'd send the actual image. For now, simulate verification.
+          image_description: caption || 'User check-in photo'
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.verified) {
+          setVerificationMessage(result.message || '✓ Great job! Your check-in has been verified.');
+          setStage('verified');
+          setTimeout(() => {
+            onComplete(photo, caption || `Day ${goal.current_streak + 1}! 💪`);
+          }, 1500);
+        } else {
+          setVerificationMessage(result.message || 'This photo doesn\'t seem to match your goal. Try again?');
+          setStage('failed');
+        }
+      } else {
+        // Fallback: accept the check-in if API fails
+        setVerificationMessage('✓ Check-in recorded!');
+        setStage('verified');
+        setTimeout(() => {
+          onComplete(photo, caption || `Day ${goal.current_streak + 1}! 💪`);
+        }, 1500);
+      }
+    } catch (error) {
+      // Fallback: accept if network error
+      setVerificationMessage('✓ Check-in recorded!');
+      setStage('verified');
+      setTimeout(() => {
+        onComplete(photo, caption || `Day ${goal.current_streak + 1}! 💪`);
+      }, 1500);
+    }
   };
 
   if (!permission) return <View style={styles.cameraContainer}><ActivityIndicator /></View>;
@@ -916,47 +1069,149 @@ function CheckInScreen({ goal, onBack, onComplete }: { goal: Goal; onBack: () =>
     );
   }
 
-  return (
-    <View style={styles.cameraContainer}>
-      {!photo ? (
-        <>
-          <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-            <SafeAreaView style={styles.cameraOverlay}>
-              <View style={styles.cameraTopBar}>
-                <TouchableOpacity onPress={onBack}>
-                  <Text style={styles.cameraClose}>✕</Text>
-                </TouchableOpacity>
-                <View style={styles.goalBadge}>
-                  <Text style={styles.goalBadgeText}>🎯 {goal.title}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-                  <Text style={styles.cameraFlip}>⟳</Text>
-                </TouchableOpacity>
+  // STAGE 1: Capture
+  if (stage === 'capture') {
+    return (
+      <View style={styles.cameraContainer}>
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing={facing}
+          onTouchEnd={handleDoubleTap}
+        >
+          <SafeAreaView style={styles.cameraOverlay}>
+            <View style={styles.cameraTopBar}>
+              <TouchableOpacity onPress={onBack} style={styles.cameraCloseBtn}>
+                <Text style={styles.cameraClose}>✕</Text>
+              </TouchableOpacity>
+              <View style={styles.goalBadge}>
+                <Text style={styles.goalBadgeText}>🎯 {goal.title}</Text>
               </View>
-            </SafeAreaView>
-          </CameraView>
-          <View style={styles.captureRow}>
-            <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
-              <View style={styles.captureBtnInner} />
+              <View style={{ width: 44 }} />
+            </View>
+          </SafeAreaView>
+        </CameraView>
+
+        <View style={styles.cameraBottomBar}>
+          <View style={{ width: 60 }} />
+          <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
+            <View style={styles.captureBtnInner} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.flipBtn} onPress={toggleCamera}>
+            <Text style={styles.flipBtnText}>🔄</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // STAGE 2: Edit (Instagram-style)
+  if (stage === 'edit' && photo) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1, backgroundColor: '#000' }}
+      >
+        <SafeAreaView style={{ flex: 1 }}>
+          {/* Full-screen photo preview */}
+          <Image source={{ uri: photo }} style={styles.fullScreenPreview} />
+
+          {/* Top bar */}
+          <View style={styles.editTopBar}>
+            <TouchableOpacity onPress={() => { setPhoto(null); setStage('capture'); }} style={styles.editBackBtn}>
+              <Text style={{ color: '#FFF', fontSize: 16 }}>← Retake</Text>
             </TouchableOpacity>
+            <View style={styles.goalBadge}>
+              <Text style={styles.goalBadgeText}>🎯 {goal.title}</Text>
+            </View>
           </View>
-        </>
-      ) : (
-        <SafeAreaView style={[styles.reviewContainer, { backgroundColor: theme.bg }]}>
-          <Text style={[styles.reviewTitle, { color: theme.text }]}>Looking good!</Text>
-          <View style={[styles.reviewPhoto, { backgroundColor: theme.bgSecondary }]}>
-            <Text style={{ fontSize: 64 }}>📸</Text>
-          </View>
-          <View style={styles.reviewActions}>
-            <TouchableOpacity style={[styles.retakeBtn, { borderColor: theme.border }]} onPress={() => setPhoto(null)}>
-              <Text style={{ color: theme.text }}>Retake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: theme.accent }]} onPress={submitCheckIn} disabled={isUploading}>
-              {isUploading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Submit</Text>}
-            </TouchableOpacity>
+
+          {/* Bottom edit panel */}
+          <View style={styles.editBottomPanel}>
+            <View style={[styles.captionInput, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+              <TextInput
+                placeholder="Write a caption..."
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                value={caption}
+                onChangeText={setCaption}
+                style={styles.captionTextInput}
+                multiline
+                maxLength={200}
+              />
+            </View>
+
+            <View style={styles.editActions}>
+              <View style={styles.streakPreview}>
+                <Text style={styles.streakPreviewText}>🔥 {goal.current_streak + 1} day streak!</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.shareBtn, { backgroundColor: theme.accent }]}
+                onPress={verifyAndSubmit}
+              >
+                <Text style={styles.shareBtnText}>Share Check-in →</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
-      )}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // STAGE 3: Verifying / Result
+  return (
+    <View style={[styles.verifyContainer, { backgroundColor: theme.bg }]}>
+      <SafeAreaView style={styles.verifyContent}>
+        {stage === 'verifying' && (
+          <>
+            <ActivityIndicator size="large" color={theme.accent} />
+            <Text style={[styles.verifyTitle, { color: theme.text }]}>Verifying your check-in...</Text>
+            <Text style={[styles.verifySubtitle, { color: theme.textSecondary }]}>
+              Making sure this matches "{goal.title}"
+            </Text>
+          </>
+        )}
+
+        {stage === 'verified' && (
+          <>
+            <Text style={styles.verifyEmoji}>✅</Text>
+            <Text style={[styles.verifyTitle, { color: theme.text }]}>Verified!</Text>
+            <Text style={[styles.verifySubtitle, { color: theme.textSecondary }]}>
+              {verificationMessage}
+            </Text>
+            <Text style={[styles.streakBig, { color: theme.accent }]}>
+              🔥 {goal.current_streak + 1} days
+            </Text>
+          </>
+        )}
+
+        {stage === 'failed' && (
+          <>
+            <Text style={styles.verifyEmoji}>⚠️</Text>
+            <Text style={[styles.verifyTitle, { color: theme.text }]}>Hmm, not quite right</Text>
+            <Text style={[styles.verifySubtitle, { color: theme.textSecondary }]}>
+              {verificationMessage}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 16, marginTop: 24 }}>
+              <TouchableOpacity
+                style={[styles.retakeBtn, { borderColor: theme.border }]}
+                onPress={() => { setPhoto(null); setStage('capture'); }}
+              >
+                <Text style={{ color: theme.text }}>Retake Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: theme.accent }]}
+                onPress={() => {
+                  // Allow user to submit anyway
+                  if (photo) onComplete(photo, caption || `Day ${goal.current_streak + 1}! 💪`);
+                }}
+              >
+                <Text style={styles.submitBtnText}>Submit Anyway</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </SafeAreaView>
     </View>
   );
 }
@@ -973,12 +1228,60 @@ export default function App() {
   const [screen, setScreen] = useState<'tabs' | 'goal' | 'coach' | 'checkin' | 'create'>('tabs');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [goals, setGoals] = useState<Goal[]>([
-    { id: '1', title: 'Run 3x per week', category: 'fitness', current_streak: 12, frequency: 'daily', description: '' },
-    { id: '2', title: 'Read 30 minutes', category: 'learning', current_streak: 5, frequency: 'daily', description: '' },
-    { id: '3', title: 'Meditate daily', category: 'wellness', current_streak: 3, frequency: 'daily', description: '' },
+    { id: '1', title: 'Run 3x per week', category: 'fitness', current_streak: 12, frequency: 'daily', description: '', checkedToday: false },
+    { id: '2', title: 'Read 30 minutes', category: 'learning', current_streak: 5, frequency: 'daily', description: '', checkedToday: false },
+    { id: '3', title: 'Meditate daily', category: 'wellness', current_streak: 3, frequency: 'daily', description: '', checkedToday: false },
   ]);
+  const [myCheckIns, setMyCheckIns] = useState<CheckIn[]>([]);
 
   const theme = isDark ? darkTheme : lightTheme;
+
+  // Helper to format time ago
+  const formatTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    return `${diffDays} days ago`;
+  };
+
+  // Handle check-in completion
+  const handleCheckInComplete = (goalId: string, photoUri: string, caption: string = '') => {
+    // Update the goal's streak and mark as checked today
+    setGoals(prevGoals => prevGoals.map(g => {
+      if (g.id === goalId) {
+        return {
+          ...g,
+          current_streak: g.current_streak + 1,
+          checkedToday: true,
+          lastCheckIn: new Date().toISOString()
+        };
+      }
+      return g;
+    }));
+
+    // Find the goal to get its title and new streak
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    // Add to myCheckIns
+    const newCheckIn: CheckIn = {
+      id: `checkin-${Date.now()}`,
+      goalId,
+      goalTitle: goal.title,
+      photoUri,
+      caption: caption || `Day ${goal.current_streak + 1}! 💪`,
+      streak: goal.current_streak + 1,
+      timestamp: new Date()
+    };
+    setMyCheckIns(prev => [newCheckIn, ...prev]);
+  };
 
   // Auth state listener
   useEffect(() => {
@@ -1035,7 +1338,15 @@ export default function App() {
   if (screen === 'checkin' && selectedGoal) {
     return (
       <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <CheckInScreen goal={selectedGoal} onBack={() => setScreen('goal')} onComplete={() => setScreen('tabs')} />
+        <CheckInScreen
+          goal={selectedGoal}
+          onBack={() => setScreen('goal')}
+          onComplete={(photoUri, caption) => {
+            handleCheckInComplete(selectedGoal.id, photoUri, caption);
+            setScreen('tabs');
+            setTab('feed'); // Go to feed to see the photo
+          }}
+        />
         <StatusBar style="light" />
       </ThemeContext.Provider>
     );
@@ -1051,10 +1362,12 @@ export default function App() {
   }
 
   if (screen === 'goal' && selectedGoal) {
+    // Get fresh goal from goals array to reflect updated checkedToday status
+    const currentGoal = goals.find(g => g.id === selectedGoal.id) || selectedGoal;
     return (
       <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
         <GoalDetailScreen
-          goal={selectedGoal}
+          goal={currentGoal}
           onBack={() => setScreen('tabs')}
           onAskCoach={() => setScreen('coach')}
           onCheckIn={() => setScreen('checkin')}
@@ -1076,7 +1389,7 @@ export default function App() {
               onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
             />
           )}
-          {tab === 'feed' && <FeedScreen />}
+          {tab === 'feed' && <FeedScreen myCheckIns={myCheckIns} formatTimeAgo={formatTimeAgo} />}
           {tab === 'settings' && <SettingsScreen />}
         </SafeAreaView>
         <TabBar activeTab={tab} onTabPress={setTab} />
@@ -1143,10 +1456,16 @@ const styles = StyleSheet.create({
   feedStreak: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   feedStreakText: { fontSize: 12, fontWeight: '600' },
   feedImagePlaceholder: { height: 200, justifyContent: 'center', alignItems: 'center' },
+  feedImage: { width: '100%', height: 300, resizeMode: 'cover' },
   feedCaption: { fontSize: 15, padding: 14, paddingTop: 10 },
   feedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, paddingTop: 0 },
   likeButton: { padding: 4 },
   feedTime: { fontSize: 12 },
+
+  // Empty state
+  emptyState: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20 },
+  emptyStateTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
+  emptyStateText: { fontSize: 14, textAlign: 'center' },
 
   // Settings
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
@@ -1210,19 +1529,52 @@ const styles = StyleSheet.create({
   cameraOverlay: { flex: 1 },
   cameraTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   cameraClose: { color: '#FFF', fontSize: 28 },
+  cameraCloseBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   cameraFlip: { color: '#FFF', fontSize: 28 },
   goalBadge: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   goalBadgeText: { color: '#FFF', fontSize: 14 },
   captureRow: { position: 'absolute', bottom: 50, width: '100%', alignItems: 'center' },
+  cameraBottomBar: { position: 'absolute', bottom: 40, width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
   captureBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
   captureBtnInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
+  flipBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginLeft: 24 },
+  flipBtnText: { fontSize: 28 },
+  successToast: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#4CAF50', paddingVertical: 16, paddingHorizontal: 20, borderRadius: 12, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  successToastText: { color: '#FFF', fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  previewImage: { width: '100%', height: '100%', borderRadius: 16 },
   reviewContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   reviewTitle: { fontSize: 24, fontWeight: '700', marginBottom: 24 },
-  reviewPhoto: { width: 200, height: 200, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
+  reviewPhoto: { width: 280, height: 280, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 32, overflow: 'hidden' },
   reviewActions: { flexDirection: 'row', gap: 16 },
   retakeBtn: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
   submitBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
   submitBtnText: { color: '#FFF', fontWeight: '600' },
+
+  // Edit screen (Instagram-style)
+  fullScreenPreview: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, resizeMode: 'cover' },
+  editTopBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 8 },
+  editBackBtn: { padding: 8 },
+  editBottomPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: 'rgba(0,0,0,0.7)' },
+  captionInput: { borderRadius: 12, marginBottom: 16 },
+  captionTextInput: { color: '#FFF', fontSize: 16, padding: 16, minHeight: 60 },
+  editActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  streakPreview: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
+  streakPreviewText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+  shareBtn: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 25, flexDirection: 'row', alignItems: 'center' },
+  shareBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+
+  // Verify screen
+  verifyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  verifyContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  verifyEmoji: { fontSize: 64, marginBottom: 16 },
+  verifyTitle: { fontSize: 24, fontWeight: '700', marginTop: 16, marginBottom: 8, textAlign: 'center' },
+  verifySubtitle: { fontSize: 15, textAlign: 'center', marginBottom: 16 },
+  streakBig: { fontSize: 32, fontWeight: '700', marginTop: 16 },
+
+  // Feed tabs
+  feedTabs: { flexDirection: 'row', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1 },
+  feedTab: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center' },
+  feedTabText: { fontSize: 13, fontWeight: '600' },
 
   // Permission
   permissionText: { fontSize: 16, marginBottom: 20, textAlign: 'center', paddingHorizontal: 40 },

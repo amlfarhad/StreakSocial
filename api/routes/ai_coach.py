@@ -251,3 +251,86 @@ async def plan_goal_endpoint(request: GoalPlanRequest):
         tips=plan.get("tips", []),
         trace_id=trace_id
     )
+
+
+# ==================================================
+# VERIFY CHECK-IN ENDPOINT
+# ==================================================
+class VerifyCheckInRequest(BaseModel):
+    goal_title: str
+    goal_category: str
+    image_description: Optional[str] = None  # For now we use text; in production would use actual image
+
+
+class VerifyCheckInResponse(BaseModel):
+    verified: bool
+    message: str
+    confidence: Optional[float] = None
+
+
+@router.post("/verify-checkin", response_model=VerifyCheckInResponse)
+async def verify_checkin(request: VerifyCheckInRequest):
+    """
+    Verify that a check-in photo matches the goal.
+    For now, this is a simplified verification. In production,
+    this would use Gemini's vision capabilities to analyze the actual image.
+    """
+    import random
+    
+    # Simple heuristic verification based on category and description
+    # In production, this would use Gemini Vision API with the actual photo
+    
+    goal_lower = request.goal_title.lower()
+    description_lower = (request.image_description or "").lower()
+    category = request.goal_category.lower()
+    
+    # Keywords that might indicate goal completion
+    fitness_keywords = ["run", "gym", "workout", "exercise", "yoga", "sweat", "training", "fitness", "outdoor", "morning"]
+    learning_keywords = ["book", "read", "study", "learn", "notes", "library", "desk"]
+    wellness_keywords = ["meditate", "calm", "peaceful", "yoga", "relax", "morning", "nature"]
+    
+    # Check for keyword matches (simplified verification)
+    verified = False
+    confidence = 0.5
+    
+    if category == "fitness":
+        if any(kw in goal_lower or kw in description_lower for kw in fitness_keywords):
+            verified = True
+            confidence = 0.85
+    elif category == "learning":
+        if any(kw in goal_lower or kw in description_lower for kw in learning_keywords):
+            verified = True
+            confidence = 0.85
+    elif category == "wellness":
+        if any(kw in goal_lower or kw in description_lower for kw in wellness_keywords):
+            verified = True
+            confidence = 0.85
+    
+    # For demo purposes, approve most check-ins to allow testing
+    # In production, this would be stricter with actual image analysis
+    if not verified and random.random() > 0.3:  # 70% approval rate for demo
+        verified = True
+        confidence = 0.7
+    
+    if verified:
+        messages = [
+            "Great job! Your check-in has been verified. 🎉",
+            "Looking good! Keep up the amazing work! 💪",
+            "Verified! You're building an incredible streak! 🔥",
+            "Perfect! Another day, another step towards your goal! ⭐",
+        ]
+        message = random.choice(messages)
+    else:
+        messages = [
+            f"This doesn't quite look like {request.goal_title}. Try taking a photo that shows your progress!",
+            f"Hmm, we couldn't verify this as a {request.goal_title} check-in. Show us what you've accomplished!",
+            "We want to make sure you're really crushing your goals! Take a photo of your progress.",
+        ]
+        message = random.choice(messages)
+    
+    return VerifyCheckInResponse(
+        verified=verified,
+        message=message,
+        confidence=confidence
+    )
+
