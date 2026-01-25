@@ -9,7 +9,8 @@ from google.genai import types
 from .opik_config import track, get_current_trace_id, OPIK_ENABLED
 
 # Initialize Gemini client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Client initialized inside functions to prevent startup crashes
+
 
 # System prompts
 GOAL_COACH_PROMPT = """You're a friendly, knowledgeable coach. The user is working on: {goal_title} ({streak} day streak).
@@ -68,6 +69,7 @@ def chat_with_coach(message: str, goal_title: str, streak: int, history: list = 
     ))
     
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=contents,
@@ -117,6 +119,7 @@ SAFETY NOTES:
     ))
     
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=contents,
@@ -163,6 +166,7 @@ Return JSON only:
 }}'''
     
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[

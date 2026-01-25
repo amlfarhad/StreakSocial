@@ -19,9 +19,8 @@ app = FastAPI(
 # CORS - allow Expo app to connect
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["*"],  # Wildcard + allow_credentials=True is invalid in browsers
-    allow_origin_regex="https://.*\.vercel\.app|http://localhost:.*",  # Allow all Vercel apps & localhost
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow ALL origins (bulletproof for hackathons)
+    allow_credentials=False, # We don't need cookies/auth headers for this API
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -8,8 +8,8 @@ from google import genai
 from google.genai import types
 from .opik_config import track, OPIK_ENABLED
 
-# Initialize Gemini client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Client initialized inside functions to prevent startup crashes if key is missing
+
 
 # Define tools the agent can use
 AGENT_TOOLS = [
@@ -100,6 +100,7 @@ Return a JSON object with:
 Be specific and realistic. Focus on sustainable progress."""
 
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
@@ -164,7 +165,9 @@ Suggest ONE specific, actionable thing the user can do RIGHT NOW.
 Keep it short (2-3 sentences max) and motivating.
 If streak is 0, focus on starting fresh. If high streak, focus on maintenance."""
 
+    # Initialize client locally
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
@@ -253,7 +256,9 @@ Respond naturally and use tools when they add value."""
             ]
         ))
     
+    # Initialize client locally
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=contents,
@@ -338,7 +343,9 @@ Goal: {goal_description}
 Milestones: {len(plan.get('milestones', []))} weeks
 Daily habit: {plan.get('daily_habit', 'Daily practice')}"""
 
+    # Initialize client locally
     try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[types.Content(role="user", parts=[types.Part(text=summary_prompt)])],
