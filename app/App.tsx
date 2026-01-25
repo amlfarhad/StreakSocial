@@ -728,12 +728,14 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
         const data = await response.json();
         setConversation(prev => [...prev, { role: 'assistant', content: data.message }]);
       } else {
-        throw new Error('API error');
+        const errorData = await response.text();
+        throw new Error(`API Error: ${response.status} - ${errorData}`);
       }
-    } catch {
+    } catch (error: any) {
+      console.error('Chat error:', error);
       setConversation(prev => [...prev, {
         role: 'assistant',
-        content: `I'm here to help you with "${goal.title}". What specific aspect would you like to work on?`
+        content: `Connection Error: ${error.message}. (Backend URL: ${API_URL})`
       }]);
     } finally {
       setIsLoading(false);
