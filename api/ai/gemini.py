@@ -80,7 +80,8 @@ def chat_with_coach(message: str, goal_title: str, streak: int, history: list = 
         return response.text
     except Exception as e:
         print(f"Gemini error: {e}")
-        return f"I'm here to help you with \"{goal_title}\". What specific aspect would you like to work on?"
+        # For debugging purposes, exposing the error in the response temporarily
+        return f"System Error: {str(e)}"
 
 
 @track(
