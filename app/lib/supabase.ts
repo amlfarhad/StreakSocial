@@ -1,10 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚠️ IMPORTANT: Replace these with your Supabase project credentials
-// Get them from: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/api
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+// Use EXPO_PUBLIC_ variables for Vercel/Expo, fallback to hardcoded for local dev if needed
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://rslvjsflhetjoyqirgql.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzbHZqc2ZsaGV0am95cWlyZ3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1MTg5MzcsImV4cCI6MjA4NDA5NDkzN30.L8x0tDMNw62mE8voO6sQv2CByDclWNKEHOSguWAG6_o';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
