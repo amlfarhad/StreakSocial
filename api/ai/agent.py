@@ -314,7 +314,7 @@ Respond naturally and use tools when they add value."""
     except Exception as e:
         print(f"Agentic chat error: {e}")
         return {
-            "message": f"I'm here to help with \"{goal_title}\". What specific aspect would you like to work on?",
+            "message": f"Agentic System Error: {str(e)}",
             "tool_calls": [],
             "is_agentic": False
         }
