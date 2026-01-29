@@ -265,6 +265,12 @@ function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab
 // ============================================
 // HOME SCREEN
 // ============================================
+interface AIInsight {
+  message: string;
+  urgency: 'low' | 'medium' | 'high';
+  emoji: string;
+}
+
 function HomeScreen({
   goals,
   onGoalPress,
@@ -279,6 +285,48 @@ function HomeScreen({
   const { theme } = useContext(ThemeContext);
   const [timeLeft, setTimeLeft] = useState('');
   const [isCheckInWindow, setIsCheckInWindow] = useState(false);
+  const [aiInsight, setAiInsight] = useState<AIInsight | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+
+  // Fetch proactive AI insight on mount
+  useEffect(() => {
+    const fetchInsight = async () => {
+      if (goals.length === 0) return;
+
+      setInsightLoading(true);
+      try {
+        // Find the goal with the lowest streak (most at-risk)
+        const atRiskGoal = goals.reduce((min, g) => g.current_streak < min.current_streak ? g : min, goals[0]);
+
+        const response = await fetch(`${API_URL}/ai/agentic-chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Give me a very brief (1-2 sentences) motivational insight for my goal "${atRiskGoal.title}" with a ${atRiskGoal.current_streak} day streak. Be encouraging but concise.`,
+            goal_id: atRiskGoal.id,
+            goal_title: atRiskGoal.title,
+            streak: atRiskGoal.current_streak
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const streak = atRiskGoal.current_streak;
+          setAiInsight({
+            message: data.message.slice(0, 150) + (data.message.length > 150 ? '...' : ''),
+            urgency: streak === 0 ? 'high' : streak < 7 ? 'medium' : 'low',
+            emoji: data.is_agentic ? '🤖' : '💡'
+          });
+        }
+      } catch (error) {
+        console.log('Insight fetch error:', error);
+      } finally {
+        setInsightLoading(false);
+      }
+    };
+
+    fetchInsight();
+  }, [goals.length]); // Refetch when goals change
 
   useEffect(() => {
     const updateTimer = () => {
@@ -328,6 +376,34 @@ function HomeScreen({
       <Text style={[styles.subGreeting, { color: theme.textSecondary }]}>
         You have {goals.length} active goals
       </Text>
+
+      {/* AI Coach Insight Card */}
+      {(aiInsight || insightLoading) && (
+        <View style={[styles.checkInBanner, {
+          backgroundColor: theme.accentSecondary + '15',
+          borderColor: theme.accentSecondary,
+          marginBottom: 12
+        }]}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Text style={{ fontSize: 14 }}>{aiInsight?.emoji || '🤖'}</Text>
+              <Text style={[styles.checkInBannerTitle, { color: theme.accentSecondary, fontSize: 13 }]}>
+                AI Coach says:
+              </Text>
+              <View style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 }}>
+                <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '600' }}>AGENTIC</Text>
+              </View>
+            </View>
+            {insightLoading ? (
+              <ActivityIndicator size="small" color={theme.accentSecondary} style={{ alignSelf: 'flex-start' }} />
+            ) : (
+              <Text style={{ color: theme.text, fontSize: 13, lineHeight: 18 }}>
+                {aiInsight?.message}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Check-in Window Banner */}
       <View style={[styles.checkInBanner, {
@@ -391,8 +467,31 @@ function HomeScreen({
 }
 
 // ============================================
-// FEED SCREEN
+// FEED SCREEN with Integrity Algorithm
 // ============================================
+interface ApiFeedItem {
+  id: string;
+  user_id: string;
+  user_name: string;
+  avatar: string;
+  goal_title: string;
+  streak: number;
+  caption: string;
+  category: string;
+  integrity_score: number;
+  integrity_badge: string;
+  consistency_rate: number;
+  time_ago: string;
+}
+
+interface FriendRequest {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar: string;
+}
+
 function FeedScreen({
   myCheckIns,
   formatTimeAgo
@@ -401,38 +500,165 @@ function FeedScreen({
   formatTimeAgo: (date: Date) => string;
 }) {
   const { theme } = useContext(ThemeContext);
-  const [activeTab, setActiveTab] = useState<'friends' | 'community' | 'photos'>('friends');
+  const [activeTab, setActiveTab] = useState<'friends' | 'community' | 'photos'>('community');
+  const [feedData, setFeedData] = useState<ApiFeedItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const friendsFeed: FeedItem[] = [
-    { id: '1', user: 'Sarah K.', avatar: '👩‍🦰', goal: 'Morning yoga', streak: 45, caption: 'Day 45! 🧘‍♀️ Feeling stronger every day', timeAgo: '2h ago', likes: 12 },
-    { id: '2', user: 'Mike R.', avatar: '👨‍🦱', goal: 'Read daily', streak: 23, caption: 'Just finished Atomic Habits 📚', timeAgo: '4h ago', likes: 8 },
-  ];
+  // Fetch feed data
+  useEffect(() => {
+    fetchFeed();
+    fetchPendingRequests();
+  }, [activeTab]);
 
-  const communityFeed: FeedItem[] = [
-    { id: '3', user: 'Emma L.', avatar: '👩', goal: 'Run 5K', streak: 14, caption: 'Rainy run but made it happen! 🌧️', timeAgo: '5h ago', likes: 24 },
-    { id: '4', user: 'Alex T.', avatar: '🧑', goal: 'Learn guitar', streak: 30, caption: 'Finally nailed that chord progression 🎸', timeAgo: '8h ago', likes: 31 },
-    { id: '5', user: 'Jordan P.', avatar: '🧔', goal: 'Meditate', streak: 60, caption: '60 days of calm 🧘', timeAgo: '10h ago', likes: 42 },
-  ];
+  const fetchFeed = async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeTab === 'friends') {
+        params.set('friends_only', 'true');
+      }
+      const response = await fetch(`${API_URL}/checkins/feed?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFeedData(data);
+      }
+    } catch (e) {
+      console.log('Feed fetch error:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // Convert real check-ins to FeedItems
-  const myPhotosFeed: FeedItem[] = myCheckIns.map(c => ({
+  const fetchPendingRequests = async () => {
+    try {
+      const response = await fetch(`${API_URL}/friends/requests`);
+      if (response.ok) {
+        const data = await response.json();
+        setPendingRequests(data);
+      }
+    } catch (e) {
+      console.log('Requests fetch error:', e);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const response = await fetch(`${API_URL}/friends/search?q=${encodeURIComponent(searchQuery)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data);
+      }
+    } catch (e) {
+      console.log('Search error:', e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const sendFriendRequest = async (username: string) => {
+    try {
+      const response = await fetch(`${API_URL}/friends/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      if (response.ok) {
+        Alert.alert('Success', 'Friend request sent!');
+        setShowAddFriend(false);
+        setSearchQuery('');
+        setSearchResults([]);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to send request');
+    }
+  };
+
+  const acceptRequest = async (friendshipId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/friends/accept/${friendshipId}`, { method: 'POST' });
+      if (response.ok) {
+        fetchPendingRequests();
+        fetchFeed();
+      }
+    } catch (e) {
+      console.log('Accept error:', e);
+    }
+  };
+
+  const getBadgeEmoji = (badge: string) => {
+    switch (badge) {
+      case 'gold': return '🥇';
+      case 'silver': return '🥈';
+      case 'bronze': return '🥉';
+      default: return null;
+    }
+  };
+
+  const getBadgeColor = (badge: string) => {
+    switch (badge) {
+      case 'gold': return '#FFD700';
+      case 'silver': return '#C0C0C0';
+      case 'bronze': return '#CD7F32';
+      default: return theme.accent;
+    }
+  };
+
+  // Convert real check-ins to display format
+  const myPhotosFeed = myCheckIns.map(c => ({
     id: c.id,
-    user: 'You',
+    user_name: 'You',
     avatar: '😊',
-    goal: c.goalTitle,
+    goal_title: c.goalTitle,
     streak: c.streak,
     caption: c.caption,
-    timeAgo: formatTimeAgo(c.timestamp),
-    likes: 0,
-    photoUri: c.photoUri
+    time_ago: formatTimeAgo(c.timestamp),
+    photoUri: c.photoUri,
+    integrity_badge: 'none',
+    consistency_rate: 100,
+    integrity_score: 0
   }));
 
-  const currentFeed = activeTab === 'friends' ? friendsFeed : activeTab === 'community' ? communityFeed : myPhotosFeed;
-  const pageTitle = activeTab === 'photos' ? 'My Photos' : activeTab === 'friends' ? 'Friends' : 'Community';
+  const displayFeed = activeTab === 'photos' ? myPhotosFeed : feedData;
 
   return (
     <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.pageTitle, { color: theme.text }]}>{pageTitle}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Text style={[styles.pageTitle, { color: theme.text, marginBottom: 0 }]}>Feed</Text>
+        <TouchableOpacity
+          style={{ backgroundColor: theme.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
+          onPress={() => setShowAddFriend(true)}
+        >
+          <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 14 }}>+ Add Friend</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Pending Friend Requests */}
+      {pendingRequests.length > 0 && (
+        <View style={{ backgroundColor: theme.accentSecondary + '15', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+          <Text style={{ fontSize: 13, color: theme.accentSecondary, fontWeight: '600', marginBottom: 8 }}>
+            FRIEND REQUESTS ({pendingRequests.length})
+          </Text>
+          {pendingRequests.map(req => (
+            <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+              <Text style={{ fontSize: 24, marginRight: 10 }}>{req.avatar}</Text>
+              <Text style={{ flex: 1, color: theme.text, fontWeight: '500' }}>{req.display_name}</Text>
+              <TouchableOpacity
+                style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
+                onPress={() => acceptRequest(req.id)}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>Accept</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Tab Bar */}
       <View style={[styles.feedTabs, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
@@ -462,49 +688,139 @@ function FeedScreen({
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'photos' && myPhotosFeed.length === 0 && (
-        <View style={[styles.emptyState, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
-          <Text style={[styles.emptyStateTitle, { color: theme.text }]}>No check-ins yet</Text>
-          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-            Complete a check-in to see your photos here!
-          </Text>
+      {/* Integrity Algorithm Indicator */}
+      {activeTab !== 'photos' && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 }}>
+          <Text style={{ fontSize: 12, color: theme.textSecondary }}>Sorted by </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.accent + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+            <Text style={{ fontSize: 11, color: theme.accent, fontWeight: '600' }}>INTEGRITY SCORE</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: theme.textSecondary }}> • Consistency = Visibility</Text>
         </View>
       )}
 
-      {currentFeed.map(item => (
-        <View key={item.id} style={[styles.feedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.feedHeader}>
-            <View style={styles.feedUser}>
-              <Text style={styles.feedAvatar}>{item.avatar}</Text>
-              <View>
-                <Text style={[styles.feedUserName, { color: theme.text }]}>{item.user}</Text>
-                <Text style={[styles.feedGoal, { color: theme.textSecondary }]}>{item.goal}</Text>
+      {isLoading && activeTab !== 'photos' ? (
+        <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
+      ) : displayFeed.length === 0 ? (
+        <View style={[styles.emptyState, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>
+            {activeTab === 'friends' ? '👥' : activeTab === 'photos' ? '📷' : '🌍'}
+          </Text>
+          <Text style={[styles.emptyStateTitle, { color: theme.text }]}>
+            {activeTab === 'friends' ? 'No friends yet' : activeTab === 'photos' ? 'No check-ins yet' : 'No posts yet'}
+          </Text>
+          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+            {activeTab === 'friends' ? 'Add friends to see their check-ins!' :
+              activeTab === 'photos' ? 'Complete a check-in to see your photos!' :
+                'Be the first to post!'}
+          </Text>
+        </View>
+      ) : (
+        displayFeed.map((item: any) => (
+          <View key={item.id} style={[styles.feedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.feedHeader}>
+              <View style={styles.feedUser}>
+                <Text style={styles.feedAvatar}>{item.avatar}</Text>
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.feedUserName, { color: theme.text }]}>{item.user_name}</Text>
+                    {getBadgeEmoji(item.integrity_badge) && (
+                      <Text style={{ marginLeft: 4 }}>{getBadgeEmoji(item.integrity_badge)}</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.feedGoal, { color: theme.textSecondary }]}>{item.goal_title}</Text>
+                </View>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <View style={[styles.feedStreak, { backgroundColor: getBadgeColor(item.integrity_badge) + '20' }]}>
+                  <Text style={[styles.feedStreakText, { color: getBadgeColor(item.integrity_badge) }]}>🔥 {item.streak}</Text>
+                </View>
+                {item.consistency_rate && (
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4 }}>{item.consistency_rate}% consistent</Text>
+                )}
               </View>
             </View>
-            <View style={[styles.feedStreak, { backgroundColor: theme.accent + '20' }]}>
-              <Text style={[styles.feedStreakText, { color: theme.accent }]}>🔥 {item.streak}</Text>
+
+            {item.photoUri ? (
+              <Image source={{ uri: item.photoUri }} style={styles.feedImage} />
+            ) : (
+              <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
+                <Text style={{ fontSize: 48 }}>📷</Text>
+              </View>
+            )}
+
+            <Text style={[styles.feedCaption, { color: theme.text }]}>{item.caption}</Text>
+
+            <View style={styles.feedFooter}>
+              <TouchableOpacity style={styles.likeButton}>
+                <Text style={{ fontSize: 16, color: theme.text }}>❤️</Text>
+              </TouchableOpacity>
+              <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.time_ago}</Text>
             </View>
           </View>
+        ))
+      )}
 
-          {item.photoUri ? (
-            <Image source={{ uri: item.photoUri }} style={styles.feedImage} />
-          ) : (
-            <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
-              <Text style={{ fontSize: 48 }}>📷</Text>
+      {/* Add Friend Modal */}
+      {showAddFriend && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.card, borderRadius: 20, padding: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>Add Friend</Text>
+              <TouchableOpacity onPress={() => { setShowAddFriend(false); setSearchResults([]); setSearchQuery(''); }}>
+                <Text style={{ fontSize: 24, color: theme.textSecondary }}>×</Text>
+              </TouchableOpacity>
             </View>
-          )}
 
-          <Text style={[styles.feedCaption, { color: theme.text }]}>{item.caption}</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+              <TextInput
+                style={{ flex: 1, backgroundColor: theme.bgSecondary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: theme.text }}
+                placeholder="Search by username..."
+                placeholderTextColor={theme.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearch}
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: theme.accent, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center', marginLeft: 8 }}
+                onPress={handleSearch}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '600' }}>Search</Text>
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.feedFooter}>
-            <TouchableOpacity style={styles.likeButton}>
-              <Text style={{ fontSize: 16, color: theme.text }}>❤️ {item.likes}</Text>
-            </TouchableOpacity>
-            <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.timeAgo}</Text>
+            {isSearching && <ActivityIndicator color={theme.accent} />}
+
+            {searchResults.map(user => (
+              <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+                <Text style={{ fontSize: 28, marginRight: 12 }}>{user.avatar}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '500' }}>{user.display_name}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 13 }}>@{user.username}</Text>
+                </View>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: user.friendship_status ? theme.bgSecondary : theme.accent,
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16
+                  }}
+                  onPress={() => sendFriendRequest(user.username)}
+                  disabled={!!user.friendship_status}
+                >
+                  <Text style={{ color: user.friendship_status ? theme.textSecondary : '#FFF', fontWeight: '600', fontSize: 13 }}>
+                    {user.friendship_status === 'accepted' ? 'Friends' : user.friendship_status === 'pending' ? 'Pending' : 'Add'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            {searchResults.length === 0 && searchQuery && !isSearching && (
+              <Text style={{ color: theme.textSecondary, textAlign: 'center', paddingVertical: 20 }}>
+                No users found matching "{searchQuery}"
+              </Text>
+            )}
           </View>
         </View>
-      ))}
+      )}
     </ScrollView>
   );
 }
@@ -691,17 +1007,33 @@ function GoalDetailScreen({
 // ============================================
 // AI COACH SCREEN
 // ============================================
+// Extended message type for agentic responses
+interface AgenticMessage extends ChatMessage {
+  isAgentic?: boolean;
+  toolCalls?: Array<{ tool: string; args: any; result: any }>;
+}
+
 function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
   const { theme, isDark } = useContext(ThemeContext);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversation, setConversation] = useState<ChatMessage[]>([
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [conversation, setConversation] = useState<AgenticMessage[]>([
     {
       role: 'assistant',
-      content: `I'm your coach for "${goal.title}".\n\nYou're on a ${goal.current_streak} day streak — keep it up!\n\nHow can I help you today?\n\n_Note: I'm an AI assistant, not a medical professional. For health concerns, please consult a qualified provider._`
+      content: `I'm your **agentic** coach for "${goal.title}".\n\nYou're on a ${goal.current_streak} day streak — keep it up!\n\n🤖 I can automatically analyze your progress, create plans, and suggest actions.\n\nHow can I help you today?\n\n_Note: I'm an AI assistant, not a medical professional. For health concerns, please consult a qualified provider._`
     }
   ]);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const getToolDisplayName = (toolName: string): string => {
+    const names: Record<string, string> = {
+      'break_down_goal': '📋 Creating your plan...',
+      'analyze_streak_pattern': '📊 Analyzing your streak...',
+      'suggest_next_action': '💡 Finding your next step...'
+    };
+    return names[toolName] || '🔧 Processing...';
+  };
 
   const sendMessage = async () => {
     if (!message.trim() || isLoading) return;
@@ -710,9 +1042,11 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
     setMessage('');
     setConversation(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
+    setToolStatus('🤔 Thinking...');
 
     try {
-      const response = await fetch(`${API_URL}/ai/chat`, {
+      // Use agentic endpoint instead of basic chat
+      const response = await fetch(`${API_URL}/ai/agentic-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -726,7 +1060,21 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
 
       if (response.ok) {
         const data = await response.json();
-        setConversation(prev => [...prev, { role: 'assistant', content: data.message }]);
+
+        // Show tool execution if agentic
+        if (data.is_agentic && data.tool_calls?.length > 0) {
+          for (const tc of data.tool_calls) {
+            setToolStatus(getToolDisplayName(tc.tool));
+            await new Promise(r => setTimeout(r, 500)); // Brief pause to show tool usage
+          }
+        }
+
+        setConversation(prev => [...prev, {
+          role: 'assistant',
+          content: data.message,
+          isAgentic: data.is_agentic,
+          toolCalls: data.tool_calls
+        }]);
       } else {
         const errorData = await response.text();
         throw new Error(`API Error: ${response.status} - ${errorData}`);
@@ -739,6 +1087,7 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
       }]);
     } finally {
       setIsLoading(false);
+      setToolStatus(null);
     }
   };
 
@@ -756,7 +1105,12 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
           <TouchableOpacity onPress={onBack}>
             <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
           </TouchableOpacity>
-          <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>AI Coach</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>AI Coach</Text>
+            <View style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+              <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '600' }}>AGENTIC</Text>
+            </View>
+          </View>
           <View style={{ width: 50 }} />
         </View>
 
@@ -775,12 +1129,19 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
           {conversation.map((msg, index) => (
             <View key={index} style={styles.messageBlock}>
               {msg.role === 'assistant' && (
-                <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
-                  <Text style={styles.aiIndicatorText}>AI</Text>
+                <View style={[styles.aiIndicator, { backgroundColor: msg.isAgentic ? theme.accentSecondary : theme.bgSecondary }]}>
+                  <Text style={styles.aiIndicatorText}>{msg.isAgentic ? '🤖' : 'AI'}</Text>
                 </View>
               )}
               {msg.role === 'assistant' ? (
                 <View style={{ flex: 1 }}>
+                  {msg.isAgentic && msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <View style={{ marginBottom: 8, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: theme.accentSecondary + '20', borderRadius: 8 }}>
+                      <Text style={{ color: theme.accentSecondary, fontSize: 12, fontWeight: '500' }}>
+                        🔧 Used {msg.toolCalls.length} tool{msg.toolCalls.length > 1 ? 's' : ''}: {msg.toolCalls.map(tc => tc.tool.replace(/_/g, ' ')).join(', ')}
+                      </Text>
+                    </View>
+                  )}
                   <Markdown style={mdStyles}>{msg.content}</Markdown>
                 </View>
               ) : (
@@ -793,10 +1154,17 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
 
           {isLoading && (
             <View style={styles.messageBlock}>
-              <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
-                <Text style={styles.aiIndicatorText}>AI</Text>
+              <View style={[styles.aiIndicator, { backgroundColor: theme.accentSecondary }]}>
+                <Text style={styles.aiIndicatorText}>🤖</Text>
               </View>
-              <ActivityIndicator size="small" color={theme.accent} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ActivityIndicator size="small" color={theme.accent} />
+                {toolStatus && (
+                  <Text style={{ color: theme.textSecondary, fontSize: 13, fontStyle: 'italic' }}>
+                    {toolStatus}
+                  </Text>
+                )}
+              </View>
             </View>
           )}
         </ScrollView>
@@ -825,140 +1193,378 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
 }
 
 // ============================================
-// CREATE GOAL SCREEN
+// GOAL CREATION WIZARD (Step-by-Step)
 // ============================================
+interface GoalClassification {
+  category: string;
+  category_emoji: string;
+  community_id: string;
+  community_name: string;
+  community_emoji: string;
+  community_description: string;
+  member_count: number;
+  suggested_routine: string;
+  suggested_frequency: string;
+  tips: string[];
+}
+
+type WizardStep = 'title' | 'frequency' | 'reminder' | 'classify' | 'confirm';
+
+const FREQUENCIES = [
+  { id: 'daily', label: 'Every Day', desc: 'Build unbreakable habits', emoji: '🔥' },
+  { id: '3x-week', label: '3x per Week', desc: 'Balanced progress', emoji: '💪' },
+  { id: 'weekdays', label: 'Weekdays Only', desc: 'Mon-Fri consistency', emoji: '📅' },
+  { id: 'weekly', label: 'Weekly', desc: 'Once per week', emoji: '🗓️' },
+];
+
+const REMINDER_TIMES = [
+  { id: 'morning', label: 'Morning', time: '8:00 AM', emoji: '🌅' },
+  { id: 'midday', label: 'Midday', time: '12:00 PM', emoji: '☀️' },
+  { id: 'afternoon', label: 'Afternoon', time: '4:00 PM', emoji: '🌤️' },
+  { id: 'evening', label: 'Evening', time: '7:00 PM', emoji: '🌙' },
+  { id: 'night', label: 'Night', time: '10:00 PM', emoji: '🌜' },
+];
+
 function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoalCreated: (goal: Goal) => void }) {
   const { theme } = useContext(ThemeContext);
-  const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [conversation, setConversation] = useState<ChatMessage[]>([
-    { role: 'assistant', content: "What goal would you like to work on?\n\n• \"I want to exercise more\"\n• \"Learn to play guitar\"\n• \"Read more books\"" }
-  ]);
-  const [goalData, setGoalData] = useState<{ title?: string; isComplete?: boolean }>({});
-  const scrollViewRef = useRef<ScrollView>(null);
+  const [step, setStep] = useState<WizardStep>('title');
+  const [title, setTitle] = useState('');
+  const [frequency, setFrequency] = useState('daily');
+  const [reminderTime, setReminderTime] = useState('morning');
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [classification, setClassification] = useState<GoalClassification | null>(null);
 
-  const sendMessage = async () => {
-    if (!message.trim() || isLoading) return;
+  const steps: WizardStep[] = ['title', 'frequency', 'reminder', 'classify', 'confirm'];
+  const currentStepIndex = steps.indexOf(step);
+  const progress = ((currentStepIndex + 1) / steps.length) * 100;
 
-    const userMessage = message.trim();
-    setMessage('');
-    setConversation(prev => [...prev, { role: 'user', content: userMessage }]);
-    setIsLoading(true);
+  const handleNext = async () => {
+    if (step === 'title' && !title.trim()) return;
 
-    try {
-      const response = await fetch(`${API_URL}/ai/refine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          history: conversation.map(m => ({ role: m.role, content: m.content }))
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setConversation(prev => [...prev, { role: 'assistant', content: data.message }]);
-        if (data.is_complete) {
-          const title = data.message.match(/🎯\s*(.+?)(?:\n|$)/i)?.[1] || userMessage;
-          setGoalData({ title: title.trim(), isComplete: true });
+    if (step === 'reminder') {
+      // Trigger AI classification
+      setStep('classify');
+      setIsClassifying(true);
+      try {
+        const response = await fetch(`${API_URL}/ai/classify-goal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ goal_title: title })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setClassification(data);
         }
-      } else {
-        throw new Error('API error');
+      } catch (e) {
+        console.log('Classification error:', e);
+        // Set default classification
+        setClassification({
+          category: 'productivity',
+          category_emoji: '⚡',
+          community_id: 'productivity-community',
+          community_name: 'Productivity Masters',
+          community_emoji: '⚡',
+          community_description: 'Get more done, together',
+          member_count: 11456,
+          suggested_routine: 'Start with 15 minutes daily and build from there.',
+          suggested_frequency: 'daily',
+          tips: ['Start small', 'Be consistent', 'Track progress']
+        });
+      } finally {
+        setIsClassifying(false);
       }
-    } catch {
-      setConversation(prev => [...prev, { role: 'assistant', content: "How often would you like to work on this?" }]);
-    } finally {
-      setIsLoading(false);
+      return;
+    }
+
+    const currentIndex = steps.indexOf(step);
+    if (currentIndex < steps.length - 1) {
+      setStep(steps[currentIndex + 1]);
+    }
+  };
+
+  const handleBack = () => {
+    const currentIndex = steps.indexOf(step);
+    if (currentIndex > 0) {
+      setStep(steps[currentIndex - 1]);
+    } else {
+      onBack();
     }
   };
 
   const createGoal = () => {
-    if (!goalData.title) return;
     onGoalCreated({
       id: Date.now().toString(),
-      title: goalData.title,
-      category: 'general',
+      title: title.trim(),
+      category: classification?.category || 'general',
       current_streak: 0,
-      frequency: 'daily',
-      description: ''
+      frequency: frequency,
+      description: classification?.suggested_routine || ''
     });
   };
 
-  const mdStyles = {
-    body: { color: theme.text, fontSize: 15, lineHeight: 22 },
-    strong: { fontWeight: '600' as const },
-    paragraph: { marginVertical: 4 },
+  const renderStepContent = () => {
+    switch (step) {
+      case 'title':
+        return (
+          <View style={{ flex: 1, paddingHorizontal: 24 }}>
+            <Text style={{ fontSize: 28, fontWeight: '700', color: theme.text, marginBottom: 8 }}>
+              What's your goal?
+            </Text>
+            <Text style={{ fontSize: 15, color: theme.textSecondary, marginBottom: 32, lineHeight: 22 }}>
+              Be specific! Great goals are clear and actionable.
+            </Text>
+
+            <TextInput
+              style={{
+                backgroundColor: theme.bgSecondary,
+                borderRadius: 16,
+                padding: 20,
+                fontSize: 18,
+                color: theme.text,
+                borderWidth: 2,
+                borderColor: title.trim() ? theme.accent : theme.border,
+                minHeight: 60
+              }}
+              placeholder="e.g., Exercise for 30 minutes every day"
+              placeholderTextColor={theme.textSecondary}
+              value={title}
+              onChangeText={setTitle}
+              multiline
+              autoFocus
+            />
+
+            <View style={{ marginTop: 24 }}>
+              <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>POPULAR EXAMPLES</Text>
+              {['Run 5K daily', 'Read for 30 minutes', 'Meditate every morning', 'Practice guitar'].map((example) => (
+                <TouchableOpacity
+                  key={example}
+                  style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: theme.bgSecondary, borderRadius: 12, marginBottom: 8 }}
+                  onPress={() => setTitle(example)}
+                >
+                  <Text style={{ color: theme.text, fontSize: 15 }}>{example}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        );
+
+      case 'frequency':
+        return (
+          <View style={{ flex: 1, paddingHorizontal: 24 }}>
+            <Text style={{ fontSize: 28, fontWeight: '700', color: theme.text, marginBottom: 8 }}>
+              How often?
+            </Text>
+            <Text style={{ fontSize: 15, color: theme.textSecondary, marginBottom: 32 }}>
+              Choose a frequency that's realistic for you.
+            </Text>
+
+            {FREQUENCIES.map((freq) => (
+              <TouchableOpacity
+                key={freq.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  padding: 16,
+                  backgroundColor: frequency === freq.id ? theme.accent + '20' : theme.card,
+                  borderRadius: 16,
+                  marginBottom: 12,
+                  borderWidth: 2,
+                  borderColor: frequency === freq.id ? theme.accent : theme.border
+                }}
+                onPress={() => setFrequency(freq.id)}
+              >
+                <Text style={{ fontSize: 28, marginRight: 14 }}>{freq.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '600', color: theme.text }}>{freq.label}</Text>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 2 }}>{freq.desc}</Text>
+                </View>
+                {frequency === freq.id && (
+                  <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: theme.accent, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#FFF', fontWeight: '700' }}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'reminder':
+        return (
+          <View style={{ flex: 1, paddingHorizontal: 24 }}>
+            <Text style={{ fontSize: 28, fontWeight: '700', color: theme.text, marginBottom: 8 }}>
+              When to remind you?
+            </Text>
+            <Text style={{ fontSize: 15, color: theme.textSecondary, marginBottom: 32 }}>
+              We'll nudge you at the perfect time.
+            </Text>
+
+            {REMINDER_TIMES.map((time) => (
+              <TouchableOpacity
+                key={time.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  padding: 16,
+                  backgroundColor: reminderTime === time.id ? theme.accentSecondary + '20' : theme.card,
+                  borderRadius: 16,
+                  marginBottom: 12,
+                  borderWidth: 2,
+                  borderColor: reminderTime === time.id ? theme.accentSecondary : theme.border
+                }}
+                onPress={() => setReminderTime(time.id)}
+              >
+                <Text style={{ fontSize: 28, marginRight: 14 }}>{time.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '600', color: theme.text }}>{time.label}</Text>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 2 }}>{time.time}</Text>
+                </View>
+                {reminderTime === time.id && (
+                  <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: theme.accentSecondary, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#FFF', fontWeight: '700' }}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'classify':
+        return (
+          <View style={{ flex: 1, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }}>
+            {isClassifying ? (
+              <>
+                <ActivityIndicator size="large" color={theme.accent} />
+                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text, marginTop: 24 }}>
+                  AI is analyzing your goal...
+                </Text>
+                <Text style={{ fontSize: 14, color: theme.textSecondary, marginTop: 8, textAlign: 'center' }}>
+                  Finding the perfect category and community for you
+                </Text>
+              </>
+            ) : classification && (
+              <View style={{ width: '100%' }}>
+                <View style={{ alignItems: 'center', marginBottom: 32 }}>
+                  <Text style={{ fontSize: 48, marginBottom: 16 }}>{classification.category_emoji}</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text, textTransform: 'capitalize' }}>
+                    {classification.category}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: theme.accentSecondary + '20', borderRadius: 20 }}>
+                    <Text style={{ fontSize: 12, color: theme.accentSecondary, fontWeight: '600' }}>AI CLASSIFIED</Text>
+                  </View>
+                </View>
+
+                <View style={{ backgroundColor: theme.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.border, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 8 }}>MATCHED COMMUNITY</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 32, marginRight: 12 }}>{classification.community_emoji}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 17, fontWeight: '600', color: theme.text }}>{classification.community_name}</Text>
+                      <Text style={{ fontSize: 13, color: theme.textSecondary }}>{classification.member_count.toLocaleString()} members</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 14, color: theme.text, marginTop: 12, lineHeight: 20 }}>
+                    {classification.community_description}
+                  </Text>
+                </View>
+
+                <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 16, padding: 16 }}>
+                  <Text style={{ fontSize: 13, color: theme.accentSecondary, fontWeight: '600', marginBottom: 8 }}>💡 AI SUGGESTION</Text>
+                  <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>
+                    {classification.suggested_routine}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        );
+
+      case 'confirm':
+        return (
+          <View style={{ flex: 1, paddingHorizontal: 24 }}>
+            <View style={{ alignItems: 'center', marginBottom: 32 }}>
+              <Text style={{ fontSize: 48, marginBottom: 16 }}>🎯</Text>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text, textAlign: 'center' }}>
+                Ready to start!
+              </Text>
+            </View>
+
+            <View style={{ backgroundColor: theme.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: theme.border }}>
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>GOAL</Text>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text }}>{title}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', marginBottom: 20 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>FREQUENCY</Text>
+                  <Text style={{ fontSize: 16, color: theme.text }}>
+                    {FREQUENCIES.find(f => f.id === frequency)?.emoji} {FREQUENCIES.find(f => f.id === frequency)?.label}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>REMINDER</Text>
+                  <Text style={{ fontSize: 16, color: theme.text }}>
+                    {REMINDER_TIMES.find(t => t.id === reminderTime)?.emoji} {REMINDER_TIMES.find(t => t.id === reminderTime)?.time}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 20 }}>
+                <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>COMMUNITY</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 24, marginRight: 10 }}>{classification?.community_emoji || '👥'}</Text>
+                  <Text style={{ fontSize: 16, color: theme.text }}>{classification?.community_name || 'General Community'}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        );
+    }
   };
+
+  const canProceed = step === 'title' ? title.trim().length > 0 : true;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={[styles.chatHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-          <TouchableOpacity onPress={onBack}>
-            <Text style={[styles.backText, { color: theme.text }]}>← Cancel</Text>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.card }}>
+          <TouchableOpacity onPress={handleBack} style={{ padding: 8 }}>
+            <Text style={{ fontSize: 16, color: theme.text }}>←</Text>
           </TouchableOpacity>
-          <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>New Goal</Text>
-          <View style={{ width: 50 }} />
+          <View style={{ flex: 1, paddingHorizontal: 16 }}>
+            <View style={{ height: 4, backgroundColor: theme.bgSecondary, borderRadius: 2 }}>
+              <View style={{ height: '100%', width: `${progress}%`, backgroundColor: theme.accent, borderRadius: 2 }} />
+            </View>
+          </View>
+          <Text style={{ fontSize: 13, color: theme.textSecondary }}>{currentStepIndex + 1}/{steps.length}</Text>
         </View>
 
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {conversation.map((msg, index) => (
-            <View key={index} style={styles.messageBlock}>
-              {msg.role === 'assistant' && (
-                <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
-                  <Text style={styles.aiIndicatorText}>AI</Text>
-                </View>
-              )}
-              {msg.role === 'assistant' ? (
-                <View style={{ flex: 1 }}>
-                  <Markdown style={mdStyles}>{msg.content}</Markdown>
-                </View>
-              ) : (
-                <Text style={[styles.userMessage, { color: theme.text, backgroundColor: theme.accent + '20' }]}>
-                  {msg.content}
-                </Text>
-              )}
-            </View>
-          ))}
-
-          {isLoading && (
-            <View style={styles.messageBlock}>
-              <View style={[styles.aiIndicator, { backgroundColor: theme.bgSecondary }]}>
-                <Text style={styles.aiIndicatorText}>AI</Text>
-              </View>
-              <ActivityIndicator size="small" color={theme.accent} />
-            </View>
-          )}
-
-          {goalData.isComplete && (
-            <TouchableOpacity style={[styles.createButton, { backgroundColor: theme.accent }]} onPress={createGoal}>
-              <Text style={styles.createButtonText}>✓ Create Goal</Text>
-            </TouchableOpacity>
-          )}
+        {/* Content */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: 24, paddingBottom: 120 }}>
+          {renderStepContent()}
         </ScrollView>
 
-        <View style={[styles.inputBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.bgSecondary, color: theme.text }]}
-            placeholder="Describe your goal..."
-            placeholderTextColor={theme.textSecondary}
-            value={message}
-            onChangeText={setMessage}
-            onSubmitEditing={sendMessage}
-            returnKeyType="send"
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, { backgroundColor: theme.accent }, !message.trim() && styles.sendBtnDisabled]}
-            onPress={sendMessage}
-            disabled={!message.trim() || isLoading}
-          >
-            <Text style={styles.sendBtnText}>Send</Text>
-          </TouchableOpacity>
+        {/* Bottom Actions */}
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 40, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border }}>
+          {step === 'confirm' ? (
+            <TouchableOpacity
+              style={{ backgroundColor: theme.accent, paddingVertical: 18, borderRadius: 16, alignItems: 'center' }}
+              onPress={createGoal}
+            >
+              <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>🚀 Start My Streak</Text>
+            </TouchableOpacity>
+          ) : step === 'classify' && isClassifying ? null : (
+            <TouchableOpacity
+              style={{ backgroundColor: canProceed ? theme.accent : theme.bgSecondary, paddingVertical: 18, borderRadius: 16, alignItems: 'center' }}
+              onPress={handleNext}
+              disabled={!canProceed}
+            >
+              <Text style={{ color: canProceed ? '#FFF' : theme.textSecondary, fontSize: 17, fontWeight: '700' }}>
+                {step === 'classify' ? 'Continue' : 'Next'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -26,11 +26,12 @@ app.add_middleware(
 )
 
 # Import routes
-from routes import goals, checkins, ai_coach
+from routes import goals, checkins, ai_coach, friends
 
 app.include_router(goals.router, prefix="/goals", tags=["Goals"])
 app.include_router(checkins.router, prefix="/checkins", tags=["Check-ins"])
 app.include_router(ai_coach.router, prefix="/ai", tags=["AI Coach"])
+app.include_router(friends.router, prefix="/friends", tags=["Friends"])
 
 
 @app.get("/")

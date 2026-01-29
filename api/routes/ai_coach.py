@@ -334,3 +334,158 @@ async def verify_checkin(request: VerifyCheckInRequest):
         confidence=confidence
     )
 
+
+# ==================================================
+# AI GOAL CLASSIFICATION ENDPOINT
+# ==================================================
+
+COMMUNITIES = {
+    "fitness": {
+        "id": "fitness-community",
+        "name": "Fitness Enthusiasts",
+        "emoji": "💪",
+        "description": "Join others crushing their fitness goals",
+        "member_count": 12847
+    },
+    "learning": {
+        "id": "learning-community",
+        "name": "Lifelong Learners",
+        "emoji": "📚",
+        "description": "A community of curious minds",
+        "member_count": 9523
+    },
+    "wellness": {
+        "id": "wellness-community",
+        "name": "Wellness Warriors",
+        "emoji": "🧘",
+        "description": "Mind, body, and soul care",
+        "member_count": 8234
+    },
+    "creativity": {
+        "id": "creativity-community",
+        "name": "Creative Souls",
+        "emoji": "🎨",
+        "description": "Express yourself daily",
+        "member_count": 6891
+    },
+    "productivity": {
+        "id": "productivity-community",
+        "name": "Productivity Masters",
+        "emoji": "⚡",
+        "description": "Get more done, together",
+        "member_count": 11456
+    }
+}
+
+
+class ClassifyGoalRequest(BaseModel):
+    goal_title: str
+
+
+class ClassifyGoalResponse(BaseModel):
+    category: str
+    category_emoji: str
+    community_id: str
+    community_name: str
+    community_emoji: str
+    community_description: str
+    member_count: int
+    suggested_routine: str
+    suggested_frequency: str
+    tips: list
+
+
+@router.post("/classify-goal", response_model=ClassifyGoalResponse)
+async def classify_goal(request: ClassifyGoalRequest):
+    """
+    AI-powered goal classification.
+    Classifies the goal, matches to a community, and suggests routines.
+    """
+    import os
+    from google import genai
+    from google.genai import types
+    
+    goal = request.goal_title.lower()
+    
+    # Default classification based on keywords (fast fallback)
+    if any(kw in goal for kw in ["exercise", "gym", "run", "workout", "fitness", "weight", "muscle", "cardio", "yoga", "sport"]):
+        category = "fitness"
+    elif any(kw in goal for kw in ["read", "learn", "study", "book", "course", "language", "skill", "practice"]):
+        category = "learning"
+    elif any(kw in goal for kw in ["meditate", "sleep", "mental", "mindful", "wellness", "health", "water", "diet"]):
+        category = "wellness"
+    elif any(kw in goal for kw in ["art", "music", "write", "draw", "paint", "create", "guitar", "piano", "photo"]):
+        category = "creativity"
+    else:
+        category = "productivity"
+    
+    # Try AI classification for better accuracy
+    try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        
+        prompt = f"""Classify this goal into exactly ONE category and provide suggestions.
+
+Goal: "{request.goal_title}"
+
+Categories (pick ONE): fitness, learning, wellness, creativity, productivity
+
+Respond in this exact JSON format:
+{{
+    "category": "category_name",
+    "suggested_routine": "A specific 2-3 sentence routine recommendation",
+    "suggested_frequency": "daily/3x per week/weekdays/weekly",
+    "tips": ["tip 1", "tip 2", "tip 3"]
+}}"""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+            config=types.GenerateContentConfig(
+                max_output_tokens=300,
+                temperature=0.3
+            )
+        )
+        
+        import json
+        text = response.text
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start >= 0 and end > start:
+            ai_result = json.loads(text[start:end])
+            category = ai_result.get("category", category)
+            suggested_routine = ai_result.get("suggested_routine", "Start with 15 minutes daily and gradually increase.")
+            suggested_frequency = ai_result.get("suggested_frequency", "daily")
+            tips = ai_result.get("tips", ["Start small", "Be consistent", "Track progress"])
+        else:
+            suggested_routine = "Start with 15 minutes daily and build from there."
+            suggested_frequency = "daily"
+            tips = ["Start small and build up", "Set a specific time each day", "Track your streaks"]
+    except Exception as e:
+        print(f"AI classification error: {e}")
+        suggested_routine = "Start with 15 minutes daily and build from there."
+        suggested_frequency = "daily"
+        tips = ["Start small and build up", "Set a specific time each day", "Track your streaks"]
+    
+    # Get community info
+    community = COMMUNITIES.get(category, COMMUNITIES["productivity"])
+    
+    category_emojis = {
+        "fitness": "🏃",
+        "learning": "📖",
+        "wellness": "🧘",
+        "creativity": "🎨",
+        "productivity": "⚡"
+    }
+    
+    return ClassifyGoalResponse(
+        category=category,
+        category_emoji=category_emojis.get(category, "🎯"),
+        community_id=community["id"],
+        community_name=community["name"],
+        community_emoji=community["emoji"],
+        community_description=community["description"],
+        member_count=community["member_count"],
+        suggested_routine=suggested_routine,
+        suggested_frequency=suggested_frequency,
+        tips=tips
+    )
