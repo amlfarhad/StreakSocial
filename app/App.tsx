@@ -452,10 +452,19 @@ function HomeScreen({
               activeOpacity={0.7}
             >
               <TouchableOpacity
-                style={[styles.checkbox, { borderColor: isCheckInWindow ? theme.accent : theme.border }]}
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 26,
+                  backgroundColor: isCheckInWindow ? theme.accent : theme.bgSecondary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 2,
+                  borderColor: isCheckInWindow ? theme.accent : theme.border
+                }}
                 onPress={() => onCheckIn(goal)}
               >
-                {isCheckInWindow && <View style={[styles.checkboxPulse, { backgroundColor: theme.accent }]} />}
+                <Text style={{ fontSize: 24 }}>{isCheckInWindow ? '📷' : '➕'}</Text>
               </TouchableOpacity>
               <View style={styles.goalContent}>
                 <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
@@ -770,17 +779,25 @@ function FeedScreen({
       {isLoading && activeTab !== 'photos' ? (
         <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
       ) : displayFeed.length === 0 ? (
-        <View style={[styles.emptyState, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>
-            {activeTab === 'friends' ? '👥' : activeTab === 'photos' ? '📷' : '🌍'}
+        <View style={{
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderRadius: 20,
+          borderWidth: 1,
+          padding: 60,
+          alignItems: 'center',
+          marginTop: 20
+        }}>
+          <Text style={{ fontSize: 80, marginBottom: 24 }}>
+            {activeTab === 'friends' ? '👥' : activeTab === 'photos' ? '📸' : '🌍'}
           </Text>
-          <Text style={[styles.emptyStateTitle, { color: theme.text }]}>
-            {activeTab === 'friends' ? 'No friends yet' : activeTab === 'photos' ? 'No check-ins yet' : 'No posts yet'}
+          <Text style={{ color: theme.text, fontSize: 22, fontWeight: '700', textAlign: 'center', marginBottom: 12 }}>
+            {activeTab === 'friends' ? 'No Friends Added Yet' : activeTab === 'photos' ? 'No Check-ins Yet' : 'No Posts Yet'}
           </Text>
-          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-            {activeTab === 'friends' ? 'Add friends to see their check-ins!' :
-              activeTab === 'photos' ? 'Complete a check-in to see your photos!' :
-                'Be the first to post!'}
+          <Text style={{ color: theme.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 24 }}>
+            {activeTab === 'friends' ? 'Add friends to see their check-ins and cheer them on!' :
+              activeTab === 'photos' ? 'Complete your first check-in to start building your streak!' :
+                'Be the first to share your progress with the community!'}
           </Text>
         </View>
       ) : (
@@ -843,17 +860,27 @@ function FeedScreen({
       {/* Add Friend Modal */}
       {showAddFriend && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: theme.card, borderRadius: 20, padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>Add Friend</Text>
-              <TouchableOpacity onPress={() => { setShowAddFriend(false); setSearchResults([]); setSearchQuery(''); }}>
-                <Text style={{ fontSize: 24, color: theme.textSecondary }}>×</Text>
+          <View style={{ backgroundColor: theme.card, borderRadius: 24, padding: 24 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text }}>Add Friend</Text>
+              <TouchableOpacity
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: theme.bgSecondary,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+                onPress={() => { setShowAddFriend(false); setSearchResults([]); setSearchQuery(''); }}
+              >
+                <Text style={{ fontSize: 20, color: theme.textSecondary, fontWeight: '600' }}>×</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', marginBottom: 20 }}>
               <TextInput
-                style={{ flex: 1, backgroundColor: theme.bgSecondary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: theme.text }}
+                style={{ flex: 1, backgroundColor: theme.bgSecondary, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, color: theme.text, fontSize: 16 }}
                 placeholder="Search by username..."
                 placeholderTextColor={theme.textSecondary}
                 value={searchQuery}
@@ -861,31 +888,31 @@ function FeedScreen({
                 onSubmitEditing={handleSearch}
               />
               <TouchableOpacity
-                style={{ backgroundColor: theme.accent, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center', marginLeft: 8 }}
+                style={{ backgroundColor: theme.accent, paddingHorizontal: 20, borderRadius: 16, justifyContent: 'center', marginLeft: 10 }}
                 onPress={handleSearch}
               >
-                <Text style={{ color: '#FFF', fontWeight: '600' }}>Search</Text>
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Search</Text>
               </TouchableOpacity>
             </View>
 
-            {isSearching && <ActivityIndicator color={theme.accent} />}
+            {isSearching && <ActivityIndicator color={theme.accent} style={{ marginVertical: 20 }} />}
 
             {searchResults.map(user => (
-              <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border }}>
-                <Text style={{ fontSize: 28, marginRight: 12 }}>{user.avatar}</Text>
+              <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+                <Text style={{ fontSize: 32, marginRight: 14 }}>{user.avatar}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontWeight: '500' }}>{user.display_name}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 13 }}>@{user.username}</Text>
+                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 16 }}>{user.display_name}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14 }}>@{user.username}</Text>
                 </View>
                 <TouchableOpacity
                   style={{
                     backgroundColor: user.friendship_status ? theme.bgSecondary : theme.accent,
-                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16
+                    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20
                   }}
                   onPress={() => sendFriendRequest(user.username)}
                   disabled={!!user.friendship_status}
                 >
-                  <Text style={{ color: user.friendship_status ? theme.textSecondary : '#FFF', fontWeight: '600', fontSize: 13 }}>
+                  <Text style={{ color: user.friendship_status ? theme.textSecondary : '#FFF', fontWeight: '600', fontSize: 14 }}>
                     {user.friendship_status === 'accepted' ? 'Friends' : user.friendship_status === 'pending' ? 'Pending' : 'Add'}
                   </Text>
                 </TouchableOpacity>
@@ -893,9 +920,24 @@ function FeedScreen({
             ))}
 
             {searchResults.length === 0 && searchQuery && !isSearching && (
-              <Text style={{ color: theme.textSecondary, textAlign: 'center', paddingVertical: 20 }}>
-                No users found matching "{searchQuery}"
-              </Text>
+              <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>🔍</Text>
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', fontSize: 15 }}>
+                  No users found matching "{searchQuery}"
+                </Text>
+              </View>
+            )}
+
+            {searchResults.length === 0 && !searchQuery && !isSearching && (
+              <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                <Text style={{ fontSize: 48, marginBottom: 12 }}>👋</Text>
+                <Text style={{ color: theme.text, textAlign: 'center', fontSize: 16, fontWeight: '600', marginBottom: 6 }}>
+                  Find your friends!
+                </Text>
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', fontSize: 14 }}>
+                  Search by username to connect and support each other's streaks
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -1340,6 +1382,32 @@ function TrophyScreen() {
                 </View>
               </View>
             ))}
+            {leaderboard.length === 0 && (
+              <View style={{
+                alignItems: 'center',
+                paddingVertical: 60,
+                paddingHorizontal: 24
+              }}>
+                <Text style={{ fontSize: 80, marginBottom: 20 }}>🏆</Text>
+                <Text style={{
+                  color: theme.text,
+                  fontSize: 22,
+                  fontWeight: '700',
+                  textAlign: 'center',
+                  marginBottom: 12
+                }}>
+                  Leaderboard Coming Soon!
+                </Text>
+                <Text style={{
+                  color: theme.textSecondary,
+                  fontSize: 16,
+                  textAlign: 'center',
+                  lineHeight: 24
+                }}>
+                  Start checking in to your goals and you'll see rankings here. Be the first to top the charts!
+                </Text>
+              </View>
+            )}
           </View>
         </>
       ) : activeTab === 'challenges' ? (
@@ -1483,6 +1551,32 @@ function TrophyScreen() {
               )}
             </View>
           ))}
+          {challenges.length === 0 && (
+            <View style={{
+              alignItems: 'center',
+              paddingVertical: 60,
+              paddingHorizontal: 24
+            }}>
+              <Text style={{ fontSize: 80, marginBottom: 20 }}>⚔️</Text>
+              <Text style={{
+                color: theme.text,
+                fontSize: 22,
+                fontWeight: '700',
+                textAlign: 'center',
+                marginBottom: 12
+              }}>
+                No Active Challenges
+              </Text>
+              <Text style={{
+                color: theme.textSecondary,
+                fontSize: 16,
+                textAlign: 'center',
+                lineHeight: 24
+              }}>
+                Challenges will appear here soon! Compete with friends to earn badges and XP.
+              </Text>
+            </View>
+          )}
         </View>
       ) : (
         <View style={{ marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
@@ -1512,6 +1606,33 @@ function TrophyScreen() {
               </View>
             </View>
           ))}
+          {achievements.length === 0 && (
+            <View style={{
+              width: '100%',
+              alignItems: 'center',
+              paddingVertical: 60,
+              paddingHorizontal: 24
+            }}>
+              <Text style={{ fontSize: 80, marginBottom: 20 }}>🎖️</Text>
+              <Text style={{
+                color: theme.text,
+                fontSize: 22,
+                fontWeight: '700',
+                textAlign: 'center',
+                marginBottom: 12
+              }}>
+                Badges Coming Soon!
+              </Text>
+              <Text style={{
+                color: theme.textSecondary,
+                fontSize: 16,
+                textAlign: 'center',
+                lineHeight: 24
+              }}>
+                Complete challenges and maintain streaks to unlock achievements and earn XP!
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </ScrollView>
