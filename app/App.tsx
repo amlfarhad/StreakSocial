@@ -1302,55 +1302,142 @@ function TrophyScreen() {
           </View>
         </>
       ) : activeTab === 'challenges' ? (
-        <View style={{ marginTop: 16 }}>
+        <View style={{ marginTop: 20 }}>
           {challenges.map(challenge => (
-            <View key={challenge.id} style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border, padding: 20 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: theme.bgSecondary, justifyContent: 'center', alignItems: 'center', marginRight: 14 }}>
-                  <Text style={{ fontSize: 32 }}>{challenge.emoji}</Text>
+            <View key={challenge.id} style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderWidth: 1,
+              borderRadius: 20,
+              padding: 24,
+              marginBottom: 20
+            }}>
+              {/* Header: Emoji + Title/Description */}
+              <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                <View style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 36,
+                  backgroundColor: theme.bgSecondary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginBottom: 16
+                }}>
+                  <Text style={{ fontSize: 40 }}>{challenge.emoji}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 17 }}>{challenge.name}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 14, marginTop: 2 }}>{challenge.description}</Text>
+                <Text style={{
+                  color: theme.text,
+                  fontWeight: '700',
+                  fontSize: 20,
+                  textAlign: 'center',
+                  marginBottom: 8
+                }}>
+                  {challenge.name}
+                </Text>
+                <Text style={{
+                  color: theme.textSecondary,
+                  fontSize: 15,
+                  textAlign: 'center',
+                  lineHeight: 22
+                }}>
+                  {challenge.description}
+                </Text>
+              </View>
+
+              {/* Stats Row */}
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+                marginBottom: 20,
+                paddingHorizontal: 10
+              }}>
+                <View style={{
+                  backgroundColor: theme.bgSecondary,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 12
+                }}>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14 }}>🏅 {challenge.prize_name}</Text>
+                </View>
+                <View style={{
+                  backgroundColor: theme.accentSecondary + '20',
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 12
+                }}>
+                  <Text style={{ color: theme.accentSecondary, fontSize: 14, fontWeight: '600' }}>+{challenge.xp_reward} XP</Text>
+                </View>
+                <View style={{
+                  backgroundColor: theme.bgSecondary,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 12
+                }}>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14 }}>👥 {challenge.participants} joined</Text>
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <View style={{ backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>🏅 {challenge.prize_name}</Text>
-                  </View>
-                  <View style={{ backgroundColor: theme.accentSecondary + '20', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                    <Text style={{ color: theme.accentSecondary, fontSize: 12, fontWeight: '600' }}>+{challenge.xp_reward} XP</Text>
-                  </View>
-                </View>
-                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>👥 {challenge.participants} joined</Text>
-              </View>
-
+              {/* Progress or Join Button */}
               {challenge.user_joined ? (
-                <View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{challenge.user_progress}</Text>
-                      <Text style={{ color: theme.textSecondary, fontSize: 14 }}> / {challenge.goal_checkins} days</Text>
-                    </View>
-                    <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>{challenge.ends_in}</Text>
+                <View style={{ marginTop: 8 }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 12
+                  }}>
+                    <Text style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>
+                      {challenge.user_progress} / {challenge.goal_checkins} days
+                    </Text>
+                    <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '600' }}>
+                      {challenge.ends_in}
+                    </Text>
                   </View>
-                  <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 10, height: 12, overflow: 'hidden' }}>
-                    <View style={{ backgroundColor: challenge.user_completed ? theme.accentSecondary : theme.accent, height: 12, width: `${Math.min(100, (challenge.user_progress / challenge.goal_checkins) * 100)}%`, borderRadius: 10 }} />
+                  <View style={{
+                    backgroundColor: theme.bgSecondary,
+                    borderRadius: 12,
+                    height: 16,
+                    overflow: 'hidden'
+                  }}>
+                    <View style={{
+                      backgroundColor: challenge.user_completed ? theme.accentSecondary : theme.accent,
+                      height: 16,
+                      width: `${Math.min(100, (challenge.user_progress / challenge.goal_checkins) * 100)}%`,
+                      borderRadius: 12
+                    }} />
                   </View>
                   {challenge.user_completed && (
-                    <View style={{ backgroundColor: theme.accentSecondary + '20', borderRadius: 12, paddingVertical: 10, marginTop: 12 }}>
-                      <Text style={{ color: theme.accentSecondary, textAlign: 'center', fontWeight: '700', fontSize: 15 }}>✅ Challenge Completed!</Text>
+                    <View style={{
+                      backgroundColor: theme.accentSecondary + '20',
+                      borderRadius: 14,
+                      paddingVertical: 14,
+                      marginTop: 16
+                    }}>
+                      <Text style={{
+                        color: theme.accentSecondary,
+                        textAlign: 'center',
+                        fontWeight: '700',
+                        fontSize: 16
+                      }}>
+                        ✅ Challenge Completed!
+                      </Text>
                     </View>
                   )}
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={{ backgroundColor: theme.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+                  style={{
+                    backgroundColor: theme.accent,
+                    borderRadius: 16,
+                    paddingVertical: 18,
+                    alignItems: 'center',
+                    marginTop: 8
+                  }}
                   onPress={() => joinChallenge(challenge.id)}
                 >
-                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Join Challenge</Text>
+                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 17 }}>Join Challenge</Text>
                 </TouchableOpacity>
               )}
             </View>
