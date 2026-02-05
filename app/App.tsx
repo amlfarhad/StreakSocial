@@ -229,11 +229,12 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
 // ============================================
 // BOTTOM TAB BAR
 // ============================================
-function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab: string) => void }) {
+function TabBar({ activeTab, onTabPress, notificationCount }: { activeTab: string; onTabPress: (tab: string) => void; notificationCount?: number }) {
   const { theme } = useContext(ThemeContext);
   const tabs: { id: string; icon: keyof typeof Feather.glyphMap; label: string }[] = [
     { id: 'feed', icon: 'camera', label: 'Feed' },
     { id: 'home', icon: 'check-square', label: 'Goals' },
+    { id: 'trophy', icon: 'award', label: 'Compete' },
     { id: 'settings', icon: 'settings', label: 'Settings' },
   ];
 
@@ -245,11 +246,18 @@ function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab
           style={styles.tabItem}
           onPress={() => onTabPress(tab.id)}
         >
-          <Feather
-            name={tab.icon}
-            size={22}
-            color={activeTab === tab.id ? theme.accent : theme.textSecondary}
-          />
+          <View style={{ position: 'relative' }}>
+            <Feather
+              name={tab.icon}
+              size={22}
+              color={activeTab === tab.id ? theme.accent : theme.textSecondary}
+            />
+            {tab.id === 'settings' && notificationCount && notificationCount > 0 && (
+              <View style={{ position: 'absolute', top: -4, right: -6, backgroundColor: '#FF3B30', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{notificationCount}</Text>
+              </View>
+            )}
+          </View>
           <Text style={[
             styles.tabLabel,
             { color: activeTab === tab.id ? theme.accent : theme.textSecondary }
@@ -261,6 +269,7 @@ function TabBar({ activeTab, onTabPress }: { activeTab: string; onTabPress: (tab
     </View>
   );
 }
+
 
 // ============================================
 // HOME SCREEN
@@ -828,12 +837,138 @@ function FeedScreen({
 // ============================================
 // SETTINGS SCREEN
 // ============================================
+interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  icon: string;
+  color: string;
+  read: boolean;
+  time_ago: string;
+}
+
 function SettingsScreen() {
   const { theme, isDark, toggle } = useContext(ThemeContext);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [userStats, setUserStats] = useState<any>(null);
+
+  useEffect(() => {
+    fetchNotifications();
+    fetchUserStats();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch(`${API_URL}/notifications/`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+        setUnreadCount(data.filter((n: NotificationItem) => !n.read).length);
+      }
+    } catch (e) {
+      console.log('Notifications fetch error:', e);
+    }
+  };
+
+  const fetchUserStats = async () => {
+    try {
+      const res = await fetch(`${API_URL}/achievements/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserStats(data);
+      }
+    } catch (e) {
+      console.log('Stats fetch error:', e);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await fetch(`${API_URL}/notifications/read-all`, { method: 'POST' });
+      fetchNotifications();
+    } catch (e) {
+      console.log('Mark read error:', e);
+    }
+  };
+
+  const getColorForType = (color: string) => {
+    switch (color) {
+      case 'warning': return '#FF9500';
+      case 'success': return '#34C759';
+      case 'gold': return '#FFD700';
+      case 'accent': return theme.accent;
+      default: return theme.accentSecondary;
+    }
+  };
 
   return (
     <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.pageTitle, { color: theme.text }]}>Settings</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Text style={[styles.pageTitle, { color: theme.text, marginBottom: 0 }]}>Settings</Text>
+        <TouchableOpacity
+          style={{ position: 'relative' }}
+          onPress={() => setShowNotifications(!showNotifications)}
+        >
+          <Feather name="bell" size={24} color={theme.text} />
+          {unreadCount > 0 && (
+            <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#FF3B30', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* User Level Card */}
+      {userStats && (
+        <View style={{ backgroundColor: theme.accent + '15', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginRight: 12 }}>{userStats.level_emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 18 }}>Level {userStats.level}</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{userStats.level_name} • {userStats.total_xp} XP</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ color: theme.accent, fontWeight: '700' }}>{userStats.achievements_unlocked}</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 11 }}>badges</Text>
+            </View>
+          </View>
+          <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 8, height: 6, overflow: 'hidden', marginTop: 12 }}>
+            <View style={{ backgroundColor: theme.accent, height: 6, width: `${userStats.progress_percent}%` }} />
+          </View>
+        </View>
+      )}
+
+      {/* Notifications Panel */}
+      {showNotifications && (
+        <View style={{ backgroundColor: theme.card, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: theme.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+            <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>Notifications</Text>
+            <TouchableOpacity onPress={markAllRead}>
+              <Text style={{ color: theme.accent, fontSize: 13 }}>Mark all read</Text>
+            </TouchableOpacity>
+          </View>
+          {notifications.length === 0 ? (
+            <Text style={{ color: theme.textSecondary, textAlign: 'center', padding: 20 }}>No notifications</Text>
+          ) : (
+            notifications.slice(0, 5).map(notif => (
+              <View key={notif.id} style={{ flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: theme.border, opacity: notif.read ? 0.6 : 1 }}>
+                <Text style={{ fontSize: 24, marginRight: 12 }}>{notif.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{notif.title}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}>{notif.message}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 4 }}>{notif.time_ago}</Text>
+                </View>
+                {!notif.read && (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: getColorForType(notif.color), marginTop: 4 }} />
+                )}
+              </View>
+            ))
+          )}
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>APPEARANCE</Text>
@@ -867,8 +1002,8 @@ function SettingsScreen() {
 
         <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={[styles.settingTitle, { color: theme.text }]}>Notifications</Text>
-            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Manage push notifications</Text>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Push Notifications</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Get streak reminders</Text>
           </View>
           <Text style={{ color: theme.textSecondary }}>→</Text>
         </TouchableOpacity>
@@ -888,7 +1023,7 @@ function SettingsScreen() {
         <View style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.settingInfo}>
             <Text style={[styles.settingTitle, { color: theme.text }]}>Version</Text>
-            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>1.0.0</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>1.0.0 (Hackathon Edition)</Text>
           </View>
         </View>
       </View>
@@ -915,6 +1050,282 @@ function SettingsScreen() {
       >
         <Text style={[styles.logoutText, { color: theme.accent }]}>Sign Out</Text>
       </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+
+// ============================================
+// TROPHY/COMPETE SCREEN
+// ============================================
+interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  user_name: string;
+  avatar: string;
+  total_score: number;
+  highest_streak: number;
+  badges: string[];
+}
+
+interface ChallengeData {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  category: string;
+  duration_days: number;
+  goal_checkins: number;
+  prize_emoji: string;
+  prize_name: string;
+  xp_reward: number;
+  participants: number;
+  user_joined: boolean;
+  user_progress: number;
+  user_completed: boolean;
+  ends_in: string | null;
+}
+
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  points: number;
+  category: string;
+  unlocked: boolean;
+}
+
+interface UserStats {
+  total_xp: number;
+  level: number;
+  level_name: string;
+  level_emoji: string;
+  xp_to_next_level: number;
+  progress_percent: number;
+  achievements_unlocked: number;
+  total_achievements: number;
+}
+
+function TrophyScreen() {
+  const { theme } = useContext(ThemeContext);
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'challenges' | 'achievements'>('leaderboard');
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [challenges, setChallenges] = useState<ChallengeData[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userRank, setUserRank] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, [activeTab]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      if (activeTab === 'leaderboard') {
+        const res = await fetch(`${API_URL}/checkins/leaderboard`);
+        if (res.ok) {
+          const data = await res.json();
+          setLeaderboard(data.entries);
+          setUserRank(data.user_rank);
+        }
+      } else if (activeTab === 'challenges') {
+        const res = await fetch(`${API_URL}/challenges/active`);
+        if (res.ok) {
+          const data = await res.json();
+          setChallenges(data);
+        }
+      } else if (activeTab === 'achievements') {
+        const [achRes, statsRes] = await Promise.all([
+          fetch(`${API_URL}/achievements/`),
+          fetch(`${API_URL}/achievements/stats`)
+        ]);
+        if (achRes.ok) setAchievements(await achRes.json());
+        if (statsRes.ok) setUserStats(await statsRes.json());
+      }
+    } catch (e) {
+      console.log('Trophy data fetch error:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const joinChallenge = async (challengeId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/challenges/join/${challengeId}`, { method: 'POST' });
+      if (res.ok) {
+        Alert.alert('🎉 Joined!', 'Good luck with the challenge!');
+        fetchData();
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to join challenge');
+    }
+  };
+
+  const getRankEmoji = (rank: number) => {
+    if (rank === 1) return '🥇';
+    if (rank === 2) return '🥈';
+    if (rank === 3) return '🥉';
+    return `#${rank}`;
+  };
+
+  return (
+    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.pageTitle, { color: theme.text }]}>Compete</Text>
+
+      {/* User Stats Banner */}
+      {userStats && activeTab === 'achievements' && (
+        <View style={{ backgroundColor: theme.accent + '15', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 32, marginRight: 12 }}>{userStats.level_emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 18 }}>Level {userStats.level}: {userStats.level_name}</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{userStats.total_xp} XP • {userStats.xp_to_next_level} to next level</Text>
+            </View>
+          </View>
+          <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 8, height: 8, overflow: 'hidden' }}>
+            <View style={{ backgroundColor: theme.accent, height: 8, width: `${userStats.progress_percent}%` }} />
+          </View>
+          <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+            {userStats.achievements_unlocked} / {userStats.total_achievements} achievements unlocked
+          </Text>
+        </View>
+      )}
+
+      {/* Tab Bar */}
+      <View style={[styles.feedTabs, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
+        <TouchableOpacity
+          style={[styles.feedTab, activeTab === 'leaderboard' && { backgroundColor: theme.accent }]}
+          onPress={() => setActiveTab('leaderboard')}
+        >
+          <Text style={[styles.feedTabText, { color: activeTab === 'leaderboard' ? '#FFF' : theme.textSecondary }]}>
+            🏆 Leaderboard
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedTab, activeTab === 'challenges' && { backgroundColor: theme.accent }]}
+          onPress={() => setActiveTab('challenges')}
+        >
+          <Text style={[styles.feedTabText, { color: activeTab === 'challenges' ? '#FFF' : theme.textSecondary }]}>
+            ⚔️ Challenges
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedTab, activeTab === 'achievements' && { backgroundColor: theme.accent }]}
+          onPress={() => setActiveTab('achievements')}
+        >
+          <Text style={[styles.feedTabText, { color: activeTab === 'achievements' ? '#FFF' : theme.textSecondary }]}>
+            🎖️ Badges
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {isLoading ? (
+        <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
+      ) : activeTab === 'leaderboard' ? (
+        <>
+          <View style={{ marginTop: 16 }}>
+            {userRank && (
+              <View style={{ backgroundColor: theme.accentSecondary + '20', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+                <Text style={{ color: theme.accentSecondary, fontWeight: '600', textAlign: 'center' }}>
+                  Your Rank: #{userRank} 🎯
+                </Text>
+              </View>
+            )}
+            {leaderboard.map((entry, idx) => (
+              <View key={entry.user_id} style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center' }]}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: idx < 3 ? '#FFD700' : theme.textSecondary, width: 40, textAlign: 'center' }}>
+                  {getRankEmoji(entry.rank)}
+                </Text>
+                <Text style={{ fontSize: 28, marginRight: 12 }}>{entry.avatar}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600' }}>{entry.user_name}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>🔥 {entry.highest_streak} day streak</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>{Math.round(entry.total_score)}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 11 }}>points</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : activeTab === 'challenges' ? (
+        <View style={{ marginTop: 16 }}>
+          {challenges.map(challenge => (
+            <View key={challenge.id} style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 36, marginRight: 12 }}>{challenge.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>{challenge.name}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{challenge.description}</Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>🏅 {challenge.prize_name}</Text>
+                </View>
+                <Text style={{ color: theme.accentSecondary, fontSize: 12, fontWeight: '600' }}>+{challenge.xp_reward} XP</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>👥 {challenge.participants}</Text>
+              </View>
+
+              {challenge.user_joined ? (
+                <View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>
+                      Progress: {challenge.user_progress}/{challenge.goal_checkins}
+                    </Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{challenge.ends_in}</Text>
+                  </View>
+                  <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 8, height: 8, overflow: 'hidden' }}>
+                    <View style={{ backgroundColor: challenge.user_completed ? theme.accentSecondary : theme.accent, height: 8, width: `${(challenge.user_progress / challenge.goal_checkins) * 100}%` }} />
+                  </View>
+                  {challenge.user_completed && (
+                    <Text style={{ color: theme.accentSecondary, textAlign: 'center', marginTop: 8, fontWeight: '600' }}>✅ Completed!</Text>
+                  )}
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={{ backgroundColor: theme.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                  onPress={() => joinChallenge(challenge.id)}
+                >
+                  <Text style={{ color: '#FFF', fontWeight: '700' }}>Join Challenge</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={{ marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          {achievements.map(ach => (
+            <View key={ach.id} style={{
+              width: '48%',
+              backgroundColor: ach.unlocked ? theme.card : theme.bgSecondary,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: ach.unlocked ? theme.accent + '40' : theme.border,
+              opacity: ach.unlocked ? 1 : 0.6
+            }}>
+              <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 8 }}>{ach.emoji}</Text>
+              <Text style={{ color: theme.text, fontWeight: '600', textAlign: 'center', fontSize: 13 }}>{ach.name}</Text>
+              <Text style={{ color: theme.textSecondary, textAlign: 'center', fontSize: 11, marginTop: 4 }}>{ach.description}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8 }}>
+                <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '600' }}>+{ach.points} XP</Text>
+              </View>
+              {ach.unlocked && (
+                <View style={{ position: 'absolute', top: 8, right: 8 }}>
+                  <Text>✅</Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -1996,6 +2407,7 @@ export default function App() {
             />
           )}
           {tab === 'feed' && <FeedScreen myCheckIns={myCheckIns} formatTimeAgo={formatTimeAgo} />}
+          {tab === 'trophy' && <TrophyScreen />}
           {tab === 'settings' && <SettingsScreen />}
         </SafeAreaView>
         <TabBar activeTab={tab} onTabPress={setTab} />

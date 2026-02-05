@@ -26,12 +26,16 @@ app.add_middleware(
 )
 
 # Import routes
-from routes import goals, checkins, ai_coach, friends
+from routes import goals, checkins, ai_coach, friends, achievements, challenges, notifications
 
 app.include_router(goals.router, prefix="/goals", tags=["Goals"])
 app.include_router(checkins.router, prefix="/checkins", tags=["Check-ins"])
 app.include_router(ai_coach.router, prefix="/ai", tags=["AI Coach"])
 app.include_router(friends.router, prefix="/friends", tags=["Friends"])
+app.include_router(achievements.router, prefix="/achievements", tags=["Achievements"])
+app.include_router(challenges.router, prefix="/challenges", tags=["Challenges"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+
 
 
 @app.get("/")

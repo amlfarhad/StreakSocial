@@ -21,12 +21,25 @@ users_db = {
     "user-jordan": {"username": "jordan_p", "display_name": "Jordan P.", "avatar": "🧔"},
     "user-lisa": {"username": "lisa_m", "display_name": "Lisa M.", "avatar": "👩‍🦳"},
     "user-david": {"username": "david_c", "display_name": "David C.", "avatar": "👨"},
+    "user-olivia": {"username": "olivia_w", "display_name": "Olivia W.", "avatar": "👧"},
+    "user-noah": {"username": "noah_b", "display_name": "Noah B.", "avatar": "👦"},
+    "user-ava": {"username": "ava_h", "display_name": "Ava H.", "avatar": "👩‍🎨"},
+    "user-liam": {"username": "liam_s", "display_name": "Liam S.", "avatar": "🧑‍💼"},
+    "user-sophia": {"username": "sophia_r", "display_name": "Sophia R.", "avatar": "👩‍🎤"},
+    "user-mason": {"username": "mason_j", "display_name": "Mason J.", "avatar": "💪"},
+    "user-isabella": {"username": "isabella_g", "display_name": "Isabella G.", "avatar": "💃"},
+    "user-ethan": {"username": "ethan_k", "display_name": "Ethan K.", "avatar": "👨‍💻"},
+    "user-mia": {"username": "mia_t", "display_name": "Mia T.", "avatar": "🧘‍♀️"},
+    "user-james": {"username": "james_w", "display_name": "James W.", "avatar": "🏃"},
+    "user-charlotte": {"username": "charlotte_d", "display_name": "Charlotte D.", "avatar": "✍️"},
+    "user-ben": {"username": "ben_f", "display_name": "Ben F.", "avatar": "🧘"},
+    "user-amelia": {"username": "amelia_p", "display_name": "Amelia P.", "avatar": "🚶‍♀️"},
 }
 
 # Friendships: { friendship_id: { requester_id, addressee_id, status, created_at } }
 friendships_db = {}
 
-# Pre-populate some friendships for demo
+# Pre-populate friendships for demo - demo user has 5 friends
 friendships_db["f1"] = {
     "requester_id": "user-sarah",
     "addressee_id": "demo-user",
@@ -40,7 +53,38 @@ friendships_db["f2"] = {
     "created_at": datetime.now()
 }
 friendships_db["f3"] = {
+    "requester_id": "demo-user",
+    "addressee_id": "user-lisa",
+    "status": "accepted",
+    "created_at": datetime.now()
+}
+friendships_db["f4"] = {
+    "requester_id": "demo-user",
+    "addressee_id": "user-jordan",
+    "status": "accepted",
+    "created_at": datetime.now()
+}
+friendships_db["f5"] = {
+    "requester_id": "user-david",
+    "addressee_id": "demo-user",
+    "status": "accepted",
+    "created_at": datetime.now()
+}
+# Pending requests for demo
+friendships_db["f6"] = {
     "requester_id": "user-emma",
+    "addressee_id": "demo-user",
+    "status": "pending",
+    "created_at": datetime.now()
+}
+friendships_db["f7"] = {
+    "requester_id": "user-olivia",
+    "addressee_id": "demo-user",
+    "status": "pending",
+    "created_at": datetime.now()
+}
+friendships_db["f8"] = {
+    "requester_id": "user-liam",
     "addressee_id": "demo-user",
     "status": "pending",
     "created_at": datetime.now()
