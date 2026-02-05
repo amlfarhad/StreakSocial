@@ -399,14 +399,14 @@ function HomeScreen({
               <Text style={[styles.checkInBannerTitle, { color: theme.accentSecondary, fontSize: 13 }]}>
                 AI Coach says:
               </Text>
-              <View style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 }}>
-                <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '600' }}>AGENTIC</Text>
+              <View style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>AGENTIC</Text>
               </View>
             </View>
             {insightLoading ? (
               <ActivityIndicator size="small" color={theme.accentSecondary} style={{ alignSelf: 'flex-start' }} />
             ) : (
-              <Text style={{ color: theme.text, fontSize: 13, lineHeight: 18 }}>
+              <Text style={{ color: theme.text, fontSize: 14, lineHeight: 20, paddingBottom: 4 }}>
                 {aiInsight?.message}
               </Text>
             )}
@@ -437,32 +437,50 @@ function HomeScreen({
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TODAY</Text>
 
-        {goals.map((goal) => (
-          <TouchableOpacity
-            key={goal.id}
-            style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={() => onGoalPress(goal)}
-            activeOpacity={0.7}
-          >
+        {goals.map((goal) => {
+          // Calculate milestone progress
+          const milestones = [7, 21, 30, 100];
+          const nextMilestone = milestones.find(m => goal.current_streak < m) || 100;
+          const prevMilestone = milestones.filter(m => goal.current_streak >= m).pop() || 0;
+          const milestoneProgress = prevMilestone > 0 ? 100 : Math.round((goal.current_streak / nextMilestone) * 100);
+
+          return (
             <TouchableOpacity
-              style={[styles.checkbox, { borderColor: isCheckInWindow ? theme.accent : theme.border }]}
-              onPress={() => onCheckIn(goal)}
+              key={goal.id}
+              style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+              onPress={() => onGoalPress(goal)}
+              activeOpacity={0.7}
             >
-              {isCheckInWindow && <View style={[styles.checkboxPulse, { backgroundColor: theme.accent }]} />}
+              <TouchableOpacity
+                style={[styles.checkbox, { borderColor: isCheckInWindow ? theme.accent : theme.border }]}
+                onPress={() => onCheckIn(goal)}
+              >
+                {isCheckInWindow && <View style={[styles.checkboxPulse, { backgroundColor: theme.accent }]} />}
+              </TouchableOpacity>
+              <View style={styles.goalContent}>
+                <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={{ fontSize: 16, marginRight: 4 }}>🔥</Text>
+                  <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>{goal.current_streak}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, marginLeft: 4 }}>day streak</Text>
+                  {goal.current_streak >= 7 && (
+                    <Text style={{ marginLeft: 8 }}>
+                      {goal.current_streak >= 100 ? '💎' : goal.current_streak >= 30 ? '🏆' : goal.current_streak >= 21 ? '🌟' : '⭐'}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <View style={[styles.streakBadge, { backgroundColor: theme.accentSecondary + '20' }]}>
+                  <Text style={[styles.streakText, { color: theme.accentSecondary }]}>
+                    {milestoneProgress}%
+                  </Text>
+                </View>
+                <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 4 }}>to {nextMilestone}d</Text>
+              </View>
             </TouchableOpacity>
-            <View style={styles.goalContent}>
-              <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
-              <Text style={[styles.goalMeta, { color: theme.textSecondary }]}>
-                🔥 {goal.current_streak} day streak
-              </Text>
-            </View>
-            <View style={[styles.streakBadge, { backgroundColor: theme.accentSecondary + '20' }]}>
-              <Text style={[styles.streakText, { color: theme.accentSecondary }]}>
-                {Math.min(100, Math.round((goal.current_streak / 30) * 100))}%
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+          );
+        })}
 
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: theme.accent }]}
@@ -734,7 +752,7 @@ function FeedScreen({
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={[styles.feedUserName, { color: theme.text }]}>{item.user_name}</Text>
                     {getBadgeEmoji(item.integrity_badge) && (
-                      <Text style={{ marginLeft: 4 }}>{getBadgeEmoji(item.integrity_badge)}</Text>
+                      <Text style={{ marginLeft: 6, fontSize: 16 }}>{getBadgeEmoji(item.integrity_badge)}</Text>
                     )}
                   </View>
                   <Text style={[styles.feedGoal, { color: theme.textSecondary }]}>{item.goal_title}</Text>
@@ -742,10 +760,13 @@ function FeedScreen({
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <View style={[styles.feedStreak, { backgroundColor: getBadgeColor(item.integrity_badge) + '20' }]}>
-                  <Text style={[styles.feedStreakText, { color: getBadgeColor(item.integrity_badge) }]}>🔥 {item.streak}</Text>
+                  <Text style={[styles.feedStreakText, { color: getBadgeColor(item.integrity_badge) }]}>🔥 {item.streak} days</Text>
                 </View>
                 {item.consistency_rate && (
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4 }}>{item.consistency_rate}% consistent</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                    <Text style={{ fontSize: 13, color: theme.accentSecondary, fontWeight: '600' }}>{item.consistency_rate}%</Text>
+                    <Text style={{ fontSize: 12, color: theme.textSecondary, marginLeft: 4 }}>consistent</Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -754,16 +775,24 @@ function FeedScreen({
               <Image source={{ uri: item.photoUri }} style={styles.feedImage} />
             ) : (
               <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
-                <Text style={{ fontSize: 48 }}>📷</Text>
+                <Text style={{ fontSize: 52 }}>📷</Text>
+                <Text style={{ color: theme.textSecondary, marginTop: 8 }}>Photo check-in</Text>
               </View>
             )}
 
             <Text style={[styles.feedCaption, { color: theme.text }]}>{item.caption}</Text>
 
             <View style={styles.feedFooter}>
-              <TouchableOpacity style={styles.likeButton}>
-                <Text style={{ fontSize: 16, color: theme.text }}>❤️</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity style={[styles.likeButton, { flexDirection: 'row', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 18 }}>❤️</Text>
+                  <Text style={{ color: theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>{item.likes || Math.floor(Math.random() * 20) + 1}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16 }}>💬</Text>
+                  <Text style={{ color: theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>{Math.floor(Math.random() * 5)}</Text>
+                </TouchableOpacity>
+              </View>
               <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.time_ago}</Text>
             </View>
           </View>
@@ -1235,18 +1264,38 @@ function TrophyScreen() {
               </View>
             )}
             {leaderboard.map((entry, idx) => (
-              <View key={entry.user_id} style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center' }]}>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: idx < 3 ? '#FFD700' : theme.textSecondary, width: 40, textAlign: 'center' }}>
-                  {getRankEmoji(entry.rank)}
-                </Text>
-                <Text style={{ fontSize: 28, marginRight: 12 }}>{entry.avatar}</Text>
+              <View key={entry.user_id} style={[styles.goalCard, {
+                backgroundColor: idx < 3 ? theme.accent + '08' : theme.card,
+                borderColor: idx < 3 ? theme.accent + '40' : theme.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+                padding: 16
+              }]}>
+                <View style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: idx < 3 ? '#FFD700' + '30' : theme.bgSecondary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginRight: 12
+                }}>
+                  <Text style={{ fontSize: idx < 3 ? 20 : 14, fontWeight: '700', color: idx < 3 ? '#FFD700' : theme.textSecondary }}>
+                    {getRankEmoji(entry.rank)}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 32, marginRight: 12 }}>{entry.avatar}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontWeight: '600' }}>{entry.user_name}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>🔥 {entry.highest_streak} day streak</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 15 }}>{entry.user_name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                    <Text style={{ fontSize: 14 }}>🔥</Text>
+                    <Text style={{ color: theme.accent, fontWeight: '600', fontSize: 14, marginLeft: 4 }}>{entry.highest_streak}</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 13, marginLeft: 4 }}>day streak</Text>
+                  </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>{Math.round(entry.total_score)}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 11 }}>points</Text>
+                  <Text style={{ color: theme.accent, fontWeight: '800', fontSize: 18 }}>{Math.round(entry.total_score)}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>points</Text>
                 </View>
               </View>
             ))}
@@ -1255,44 +1304,53 @@ function TrophyScreen() {
       ) : activeTab === 'challenges' ? (
         <View style={{ marginTop: 16 }}>
           {challenges.map(challenge => (
-            <View key={challenge.id} style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: 36, marginRight: 12 }}>{challenge.emoji}</Text>
+            <View key={challenge.id} style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border, padding: 20 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: theme.bgSecondary, justifyContent: 'center', alignItems: 'center', marginRight: 14 }}>
+                  <Text style={{ fontSize: 32 }}>{challenge.emoji}</Text>
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>{challenge.name}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{challenge.description}</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 17 }}>{challenge.name}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, marginTop: 2 }}>{challenge.description}</Text>
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                <View style={{ backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>🏅 {challenge.prize_name}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>🏅 {challenge.prize_name}</Text>
+                  </View>
+                  <View style={{ backgroundColor: theme.accentSecondary + '20', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                    <Text style={{ color: theme.accentSecondary, fontSize: 12, fontWeight: '600' }}>+{challenge.xp_reward} XP</Text>
+                  </View>
                 </View>
-                <Text style={{ color: theme.accentSecondary, fontSize: 12, fontWeight: '600' }}>+{challenge.xp_reward} XP</Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>👥 {challenge.participants}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>👥 {challenge.participants} joined</Text>
               </View>
 
               {challenge.user_joined ? (
                 <View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>
-                      Progress: {challenge.user_progress}/{challenge.goal_checkins}
-                    </Text>
-                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{challenge.ends_in}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{challenge.user_progress}</Text>
+                      <Text style={{ color: theme.textSecondary, fontSize: 14 }}> / {challenge.goal_checkins} days</Text>
+                    </View>
+                    <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>{challenge.ends_in}</Text>
                   </View>
-                  <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 8, height: 8, overflow: 'hidden' }}>
-                    <View style={{ backgroundColor: challenge.user_completed ? theme.accentSecondary : theme.accent, height: 8, width: `${(challenge.user_progress / challenge.goal_checkins) * 100}%` }} />
+                  <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 10, height: 12, overflow: 'hidden' }}>
+                    <View style={{ backgroundColor: challenge.user_completed ? theme.accentSecondary : theme.accent, height: 12, width: `${Math.min(100, (challenge.user_progress / challenge.goal_checkins) * 100)}%`, borderRadius: 10 }} />
                   </View>
                   {challenge.user_completed && (
-                    <Text style={{ color: theme.accentSecondary, textAlign: 'center', marginTop: 8, fontWeight: '600' }}>✅ Completed!</Text>
+                    <View style={{ backgroundColor: theme.accentSecondary + '20', borderRadius: 12, paddingVertical: 10, marginTop: 12 }}>
+                      <Text style={{ color: theme.accentSecondary, textAlign: 'center', fontWeight: '700', fontSize: 15 }}>✅ Challenge Completed!</Text>
+                    </View>
                   )}
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={{ backgroundColor: theme.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                  style={{ backgroundColor: theme.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
                   onPress={() => joinChallenge(challenge.id)}
                 >
-                  <Text style={{ color: '#FFF', fontWeight: '700' }}>Join Challenge</Text>
+                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Join Challenge</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1309,19 +1367,21 @@ function TrophyScreen() {
               marginBottom: 12,
               borderWidth: 1,
               borderColor: ach.unlocked ? theme.accent + '40' : theme.border,
-              opacity: ach.unlocked ? 1 : 0.6
+              opacity: ach.unlocked ? 1 : 0.5
             }}>
-              <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 8 }}>{ach.emoji}</Text>
-              <Text style={{ color: theme.text, fontWeight: '600', textAlign: 'center', fontSize: 13 }}>{ach.name}</Text>
-              <Text style={{ color: theme.textSecondary, textAlign: 'center', fontSize: 11, marginTop: 4 }}>{ach.description}</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8 }}>
-                <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '600' }}>+{ach.points} XP</Text>
-              </View>
               {ach.unlocked && (
-                <View style={{ position: 'absolute', top: 8, right: 8 }}>
-                  <Text>✅</Text>
+                <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: theme.accentSecondary, borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#FFF', fontSize: 12 }}>✓</Text>
                 </View>
               )}
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: ach.unlocked ? theme.accent + '20' : theme.bgSecondary, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ fontSize: 28 }}>{ach.emoji}</Text>
+              </View>
+              <Text style={{ color: theme.text, fontWeight: '700', textAlign: 'center', fontSize: 14, marginBottom: 4 }}>{ach.name}</Text>
+              <Text style={{ color: theme.textSecondary, textAlign: 'center', fontSize: 12, lineHeight: 16 }}>{ach.description}</Text>
+              <View style={{ backgroundColor: ach.unlocked ? theme.accent + '20' : theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 10 }}>
+                <Text style={{ color: ach.unlocked ? theme.accent : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>+{ach.points} XP</Text>
+              </View>
             </View>
           ))}
         </View>
@@ -2250,6 +2310,8 @@ export default function App() {
     { id: '3', title: 'Meditate daily', category: 'wellness', current_streak: 3, frequency: 'daily', description: '', checkedToday: false },
   ]);
   const [myCheckIns, setMyCheckIns] = useState<CheckIn[]>([]);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationData, setCelebrationData] = useState<{ milestone: number; emoji: string; title: string; message: string } | null>(null);
 
   const theme = isDark ? darkTheme : lightTheme;
 
@@ -2270,12 +2332,18 @@ export default function App() {
 
   // Handle check-in completion
   const handleCheckInComplete = (goalId: string, photoUri: string, caption: string = '') => {
+    // Find the goal to get its title and new streak
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    const newStreak = goal.current_streak + 1;
+
     // Update the goal's streak and mark as checked today
     setGoals(prevGoals => prevGoals.map(g => {
       if (g.id === goalId) {
         return {
           ...g,
-          current_streak: g.current_streak + 1,
+          current_streak: newStreak,
           checkedToday: true,
           lastCheckIn: new Date().toISOString()
         };
@@ -2283,21 +2351,31 @@ export default function App() {
       return g;
     }));
 
-    // Find the goal to get its title and new streak
-    const goal = goals.find(g => g.id === goalId);
-    if (!goal) return;
-
     // Add to myCheckIns
     const newCheckIn: CheckIn = {
       id: `checkin-${Date.now()}`,
       goalId,
       goalTitle: goal.title,
       photoUri,
-      caption: caption || `Day ${goal.current_streak + 1}! 💪`,
-      streak: goal.current_streak + 1,
+      caption: caption || `Day ${newStreak}! 💪`,
+      streak: newStreak,
       timestamp: new Date()
     };
     setMyCheckIns(prev => [newCheckIn, ...prev]);
+
+    // Check for milestone achievements
+    const milestones: { [key: number]: { emoji: string; title: string; message: string } } = {
+      7: { emoji: '⭐', title: 'Week Warrior!', message: 'You crushed your first week! Keep the momentum going!' },
+      21: { emoji: '🌟', title: '21-Day Habit!', message: 'Science says habits form in 21 days. This is now part of who you are!' },
+      30: { emoji: '🏆', title: 'Monthly Master!', message: 'A full month of consistency! You\'re in the elite club now!' },
+      50: { emoji: '💎', title: 'Halfway Century!', message: '50 days strong! You\'re unstoppable!' },
+      100: { emoji: '👑', title: 'Century Legend!', message: '100 days! You\'ve achieved something truly remarkable!' },
+    };
+
+    if (milestones[newStreak]) {
+      setCelebrationData({ milestone: newStreak, ...milestones[newStreak] });
+      setShowCelebration(true);
+    }
   };
 
   // Auth state listener
@@ -2412,6 +2490,81 @@ export default function App() {
         </SafeAreaView>
         <TabBar activeTab={tab} onTabPress={setTab} />
         <StatusBar style={isDark ? 'light' : 'dark'} />
+
+        {/* Celebration Modal */}
+        {showCelebration && celebrationData && (
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            {/* Confetti effect - decorative emojis */}
+            <Text style={{ position: 'absolute', top: 60, left: 30, fontSize: 40, transform: [{ rotate: '-15deg' }] }}>🎉</Text>
+            <Text style={{ position: 'absolute', top: 80, right: 50, fontSize: 36, transform: [{ rotate: '20deg' }] }}>✨</Text>
+            <Text style={{ position: 'absolute', top: 150, left: 60, fontSize: 28 }}>🌟</Text>
+            <Text style={{ position: 'absolute', top: 120, right: 40, fontSize: 32 }}>🎊</Text>
+            <Text style={{ position: 'absolute', bottom: 200, left: 40, fontSize: 34 }}>⭐</Text>
+            <Text style={{ position: 'absolute', bottom: 180, right: 60, fontSize: 30 }}>💫</Text>
+
+            <View style={{
+              backgroundColor: theme.card,
+              borderRadius: 28,
+              padding: 40,
+              alignItems: 'center',
+              marginHorizontal: 30,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.5,
+              shadowRadius: 20
+            }}>
+              <Text style={{ fontSize: 80, marginBottom: 16 }}>{celebrationData.emoji}</Text>
+              <Text style={{
+                color: theme.text,
+                fontSize: 28,
+                fontWeight: '800',
+                textAlign: 'center',
+                marginBottom: 8,
+                fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif'
+              }}>
+                {celebrationData.title}
+              </Text>
+              <Text style={{
+                color: theme.accent,
+                fontSize: 20,
+                fontWeight: '700',
+                marginBottom: 12
+              }}>
+                🔥 {celebrationData.milestone} Day Streak!
+              </Text>
+              <Text style={{
+                color: theme.textSecondary,
+                fontSize: 16,
+                textAlign: 'center',
+                lineHeight: 24,
+                marginBottom: 24
+              }}>
+                {celebrationData.message}
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: theme.accent,
+                  paddingVertical: 16,
+                  paddingHorizontal: 48,
+                  borderRadius: 16
+                }}
+                onPress={() => setShowCelebration(false)}
+              >
+                <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>Continue 🚀</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </ThemeContext.Provider>
   );
@@ -2442,15 +2595,15 @@ const styles = StyleSheet.create({
   section: { marginBottom: 16 },
 
   // Goal cards
-  goalCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, marginRight: 14, justifyContent: 'center', alignItems: 'center' },
-  checkboxInner: { width: 10, height: 10, borderRadius: 3, opacity: 0 },
-  checkboxPulse: { width: 10, height: 10, borderRadius: 5 },
+  goalCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 16, borderWidth: 1, marginBottom: 14 },
+  checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, marginRight: 14, justifyContent: 'center', alignItems: 'center' },
+  checkboxInner: { width: 12, height: 12, borderRadius: 4, opacity: 0 },
+  checkboxPulse: { width: 12, height: 12, borderRadius: 6 },
   goalContent: { flex: 1 },
-  goalTitle: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
-  goalMeta: { fontSize: 13 },
-  streakBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  streakText: { fontSize: 12, fontWeight: '600' },
+  goalTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  goalMeta: { fontSize: 14 },
+  streakBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  streakText: { fontSize: 14, fontWeight: '700' },
 
   // Check-in Banner
   checkInBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, borderWidth: 1, marginTop: 20, marginBottom: 4 },
@@ -2465,20 +2618,20 @@ const styles = StyleSheet.create({
   addButtonText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
 
   // Feed
-  feedCard: { borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
-  feedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
+  feedCard: { borderRadius: 20, borderWidth: 1, marginBottom: 18, overflow: 'hidden' },
+  feedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   feedUser: { flexDirection: 'row', alignItems: 'center' },
-  feedAvatar: { fontSize: 32, marginRight: 10 },
-  feedUserName: { fontSize: 15, fontWeight: '600' },
-  feedGoal: { fontSize: 13 },
-  feedStreak: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  feedStreakText: { fontSize: 12, fontWeight: '600' },
-  feedImagePlaceholder: { height: 200, justifyContent: 'center', alignItems: 'center' },
-  feedImage: { width: '100%', height: 300, resizeMode: 'cover' },
-  feedCaption: { fontSize: 15, padding: 14, paddingTop: 10 },
-  feedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, paddingTop: 0 },
-  likeButton: { padding: 4 },
-  feedTime: { fontSize: 12 },
+  feedAvatar: { fontSize: 36, marginRight: 12 },
+  feedUserName: { fontSize: 16, fontWeight: '700' },
+  feedGoal: { fontSize: 14 },
+  feedStreak: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
+  feedStreakText: { fontSize: 14, fontWeight: '700' },
+  feedImagePlaceholder: { height: 220, justifyContent: 'center', alignItems: 'center' },
+  feedImage: { width: '100%', height: 320, resizeMode: 'cover' },
+  feedCaption: { fontSize: 16, padding: 16, paddingTop: 12, lineHeight: 22 },
+  feedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 4 },
+  likeButton: { padding: 6 },
+  feedTime: { fontSize: 13 },
 
   // Empty state
   emptyState: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20 },
@@ -2486,12 +2639,12 @@ const styles = StyleSheet.create({
   emptyStateText: { fontSize: 14, textAlign: 'center' },
 
   // Settings
-  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
   settingInfo: { flex: 1, marginRight: 16 },
-  settingTitle: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
-  settingDesc: { fontSize: 13 },
-  logoutButton: { borderWidth: 1, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 24 },
-  logoutText: { fontSize: 15, fontWeight: '600' },
+  settingTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  settingDesc: { fontSize: 14, lineHeight: 20 },
+  logoutButton: { borderWidth: 2, borderRadius: 14, padding: 18, alignItems: 'center', marginTop: 28 },
+  logoutText: { fontSize: 16, fontWeight: '700' },
 
   // Properties
   propertyCard: { borderRadius: 12, borderWidth: 1, padding: 16, marginTop: 16 },
