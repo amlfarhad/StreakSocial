@@ -535,6 +535,7 @@ function FeedScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [expandRequests, setExpandRequests] = useState(false);
 
   // Fetch feed data
   useEffect(() => {
@@ -666,25 +667,65 @@ function FeedScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Pending Friend Requests */}
+      {/* Pending Friend Requests - Compact Collapsible */}
       {pendingRequests.length > 0 && (
-        <View style={{ backgroundColor: theme.accentSecondary + '15', borderRadius: 12, padding: 12, marginBottom: 16 }}>
-          <Text style={{ fontSize: 13, color: theme.accentSecondary, fontWeight: '600', marginBottom: 8 }}>
-            FRIEND REQUESTS ({pendingRequests.length})
-          </Text>
-          {pendingRequests.map(req => (
-            <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
-              <Text style={{ fontSize: 24, marginRight: 10 }}>{req.avatar}</Text>
-              <Text style={{ flex: 1, color: theme.text, fontWeight: '500' }}>{req.display_name}</Text>
-              <TouchableOpacity
-                style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
-                onPress={() => acceptRequest(req.id)}
-              >
-                <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>Accept</Text>
-              </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setExpandRequests(!expandRequests)}
+          activeOpacity={0.8}
+          style={{
+            backgroundColor: theme.accentSecondary + '15',
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 16,
+            borderWidth: 1,
+            borderColor: theme.accentSecondary + '30'
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{
+                backgroundColor: theme.accentSecondary,
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 12
+              }}>
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>{pendingRequests.length}</Text>
+              </View>
+              <Text style={{ color: theme.text, fontWeight: '600', fontSize: 15 }}>
+                Friend Request{pendingRequests.length > 1 ? 's' : ''}
+              </Text>
             </View>
-          ))}
-        </View>
+            <Text style={{ color: theme.accentSecondary, fontSize: 18 }}>
+              {expandRequests ? '▲' : '▼'}
+            </Text>
+          </View>
+
+          {/* Expanded view - show max 3 requests */}
+          {expandRequests && (
+            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: theme.accentSecondary + '30', paddingTop: 14 }}>
+              {pendingRequests.slice(0, 3).map(req => (
+                <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
+                  <Text style={{ fontSize: 28, marginRight: 12 }}>{req.avatar}</Text>
+                  <Text style={{ flex: 1, color: theme.text, fontWeight: '600', fontSize: 15 }}>{req.display_name}</Text>
+                  <TouchableOpacity
+                    style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}
+                    onPress={() => acceptRequest(req.id)}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>Accept</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {pendingRequests.length > 3 && (
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 8, fontSize: 13 }}>
+                  +{pendingRequests.length - 3} more requests
+                </Text>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
       )}
 
       {/* Tab Bar */}
