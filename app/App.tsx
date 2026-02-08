@@ -495,12 +495,8 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.authContainer}>
-          <Animated.View entering={ZoomIn.duration(500).springify()} style={{ alignItems: 'center', marginBottom: 24 }}>
-            <Image
-              source={require('./assets/logo_transparent.png')}
-              style={{ width: 200, height: 200, resizeMode: 'contain' }}
-            />
-          </Animated.View>
+          <Animated.Text entering={ZoomIn.duration(500).springify()} style={{ fontSize: 56, textAlign: 'center', marginBottom: 8 }}>🔥</Animated.Text>
+          <Animated.Text entering={FadeInDown.duration(600).springify()} style={[styles.authTitle, { color: theme.text }]}>StreakSocial</Animated.Text>
           <Animated.Text entering={FadeInDown.delay(100).duration(500)} style={[styles.authSubtitle, { color: theme.textSecondary }]}>
             {isLogin ? 'Welcome back!' : 'Create your account'}
           </Animated.Text>
@@ -1375,19 +1371,19 @@ function FeedScreen({
         <Animated.View
           entering={FadeIn.duration(400)}
           style={{
-            backgroundColor: theme.card,
-            borderColor: theme.border,
-            borderRadius: 20,
-            borderWidth: 1,
-            padding: 60,
-            alignItems: 'center',
-            marginTop: 20,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            elevation: 3,
-          }}>
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderRadius: 20,
+          borderWidth: 1,
+          padding: 60,
+          alignItems: 'center',
+          marginTop: 20,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          elevation: 3,
+        }}>
           <Animated.Text entering={ZoomIn.delay(200).duration(400).springify()} style={{ fontSize: 80, marginBottom: 24 }}>
             {activeTab === 'friends' ? '👥' : activeTab === 'photos' ? '📸' : '🌍'}
           </Animated.Text>
@@ -1471,7 +1467,7 @@ function FeedScreen({
                   </Text>
                 </AnimatedButton>
                 <AnimatedButton
-                  onPress={() => { }}
+                  onPress={() => {}}
                   hapticType="light"
                   style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 2 }}
                 >
@@ -2086,17 +2082,17 @@ function TrophyScreen() {
                 key={entry.user_id}
                 entering={FadeInDown.delay(idx * 60).duration(400).springify()}
                 style={[styles.goalCard, {
-                  backgroundColor: idx < 3 ? theme.accent + '08' : theme.card,
-                  borderColor: idx < 3 ? theme.accent + '40' : theme.border,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  padding: 16,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: idx < 3 ? 0.1 : 0.05,
-                  shadowRadius: 8,
-                  elevation: idx < 3 ? 4 : 2,
-                }]}>
+                backgroundColor: idx < 3 ? theme.accent + '08' : theme.card,
+                borderColor: idx < 3 ? theme.accent + '40' : theme.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+                padding: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: idx < 3 ? 0.1 : 0.05,
+                shadowRadius: 8,
+                elevation: idx < 3 ? 4 : 2,
+              }]}>
                 <View style={{
                   width: 40,
                   height: 40,
@@ -2160,18 +2156,18 @@ function TrophyScreen() {
               key={challenge.id}
               entering={FadeInDown.delay(idx * 100).duration(400).springify()}
               style={{
-                backgroundColor: theme.card,
-                borderColor: theme.border,
-                borderWidth: 1,
-                borderRadius: 20,
-                padding: 24,
-                marginBottom: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
-                elevation: 4,
-              }}>
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderWidth: 1,
+              borderRadius: 20,
+              padding: 24,
+              marginBottom: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              elevation: 4,
+            }}>
               {/* Header: Emoji + Title/Description */}
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
                 <View style={{
@@ -2342,20 +2338,20 @@ function TrophyScreen() {
               key={ach.id}
               entering={ZoomIn.delay(idx * 60).duration(300).springify()}
               style={{
-                width: '48%',
-                backgroundColor: ach.unlocked ? theme.card : theme.bgSecondary,
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: ach.unlocked ? theme.accent + '40' : theme.border,
-                opacity: ach.unlocked ? 1 : 0.5,
-                shadowColor: ach.unlocked ? theme.accent : '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: ach.unlocked ? 0.15 : 0.05,
-                shadowRadius: 8,
-                elevation: ach.unlocked ? 4 : 1,
-              }}>
+              width: '48%',
+              backgroundColor: ach.unlocked ? theme.card : theme.bgSecondary,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: ach.unlocked ? theme.accent + '40' : theme.border,
+              opacity: ach.unlocked ? 1 : 0.5,
+              shadowColor: ach.unlocked ? theme.accent : '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: ach.unlocked ? 0.15 : 0.05,
+              shadowRadius: 8,
+              elevation: ach.unlocked ? 4 : 1,
+            }}>
               {ach.unlocked && (
                 <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: theme.accentSecondary, borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
                   <Text style={{ color: '#FFF', fontSize: 12 }}>✓</Text>
@@ -3652,78 +3648,78 @@ export default function App() {
           <TabBar activeTab={tab} onTabPress={setTab} />
           <StatusBar style={isDark ? 'light' : 'dark'} />
 
-          {/* Celebration Modal */}
-          {showCelebration && celebrationData && (
-            <View style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.85)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 1000
-            }}>
-              <ConfettiEffect active={true} />
+        {/* Celebration Modal */}
+        {showCelebration && celebrationData && (
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            <ConfettiEffect active={true} />
 
-              <Animated.View
-                entering={ZoomIn.duration(500).springify()}
+            <Animated.View
+              entering={ZoomIn.duration(500).springify()}
+              style={{
+              backgroundColor: theme.card,
+              borderRadius: 28,
+              padding: 40,
+              alignItems: 'center',
+              marginHorizontal: 30,
+              shadowColor: theme.accent,
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 30,
+              elevation: 20,
+            }}>
+              <Animated.Text entering={ZoomIn.delay(200).duration(400).springify()} style={{ fontSize: 80, marginBottom: 16 }}>{celebrationData.emoji}</Animated.Text>
+              <Animated.Text entering={FadeInUp.delay(300).duration(400)} style={{
+                color: theme.text,
+                fontSize: 28,
+                fontWeight: '800',
+                textAlign: 'center',
+                marginBottom: 8,
+                fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif'
+              }}>
+                {celebrationData.title}
+              </Animated.Text>
+              <Animated.Text entering={FadeInUp.delay(400).duration(400)} style={{
+                color: theme.accent,
+                fontSize: 20,
+                fontWeight: '700',
+                marginBottom: 12
+              }}>
+                🔥 {celebrationData.milestone} Day Streak!
+              </Animated.Text>
+              <Animated.Text entering={FadeInUp.delay(500).duration(400)} style={{
+                color: theme.textSecondary,
+                fontSize: 16,
+                textAlign: 'center',
+                lineHeight: 24,
+                marginBottom: 24
+              }}>
+                {celebrationData.message}
+              </Animated.Text>
+              <AnimatedButton
+                onPress={() => { haptic.success(); setShowCelebration(false); }}
+                hapticType="heavy"
                 style={{
-                  backgroundColor: theme.card,
-                  borderRadius: 28,
-                  padding: 40,
-                  alignItems: 'center',
-                  marginHorizontal: 30,
-                  shadowColor: theme.accent,
-                  shadowOffset: { width: 0, height: 10 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 30,
-                  elevation: 20,
-                }}>
-                <Animated.Text entering={ZoomIn.delay(200).duration(400).springify()} style={{ fontSize: 80, marginBottom: 16 }}>{celebrationData.emoji}</Animated.Text>
-                <Animated.Text entering={FadeInUp.delay(300).duration(400)} style={{
-                  color: theme.text,
-                  fontSize: 28,
-                  fontWeight: '800',
-                  textAlign: 'center',
-                  marginBottom: 8,
-                  fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif'
-                }}>
-                  {celebrationData.title}
-                </Animated.Text>
-                <Animated.Text entering={FadeInUp.delay(400).duration(400)} style={{
-                  color: theme.accent,
-                  fontSize: 20,
-                  fontWeight: '700',
-                  marginBottom: 12
-                }}>
-                  🔥 {celebrationData.milestone} Day Streak!
-                </Animated.Text>
-                <Animated.Text entering={FadeInUp.delay(500).duration(400)} style={{
-                  color: theme.textSecondary,
-                  fontSize: 16,
-                  textAlign: 'center',
-                  lineHeight: 24,
-                  marginBottom: 24
-                }}>
-                  {celebrationData.message}
-                </Animated.Text>
-                <AnimatedButton
-                  onPress={() => { haptic.success(); setShowCelebration(false); }}
-                  hapticType="heavy"
-                  style={{
-                    backgroundColor: theme.accent,
-                    paddingVertical: 16,
-                    paddingHorizontal: 48,
-                    borderRadius: 16
-                  }}
-                >
-                  <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>Continue 🚀</Text>
-                </AnimatedButton>
-              </Animated.View>
-            </View>
-          )}
+                  backgroundColor: theme.accent,
+                  paddingVertical: 16,
+                  paddingHorizontal: 48,
+                  borderRadius: 16
+                }}
+              >
+                <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>Continue 🚀</Text>
+              </AnimatedButton>
+            </Animated.View>
+          </View>
+        )}
         </View>
       </ThemeContext.Provider>
     </SafeAreaProvider>
