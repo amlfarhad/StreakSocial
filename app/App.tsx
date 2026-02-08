@@ -18,13 +18,13 @@ import {
   RefreshControl,
   Pressable
 } from 'react-native';
-import { useState, useRef, useEffect, createContext, useContext, useCallback } from 'react';
+import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Markdown from 'react-native-markdown-display';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
-import { Session, User } from '@supabase/supabase-js';
+import { Session } from '@supabase/supabase-js';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -34,19 +34,13 @@ import Animated, {
   withTiming,
   withSequence,
   withDelay,
-  interpolate,
-  Extrapolate,
   FadeIn,
   FadeInDown,
   FadeInUp,
-  FadeOut,
-  SlideInRight,
   ZoomIn,
-  runOnJS,
   Easing
 } from 'react-native-reanimated';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Use environment variable for production, fallback to local for dev
 const API_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
 
@@ -420,18 +414,6 @@ interface ChatMessage {
   content: string;
 }
 
-interface FeedItem {
-  id: string;
-  user: string;
-  avatar: string;
-  goal: string;
-  streak: number;
-  caption: string;
-  timeAgo: string;
-  likes: number;
-  photoUri?: string; // Actual photo URI
-}
-
 interface CheckIn {
   id: string;
   goalId: string;
@@ -495,8 +477,9 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.authContainer}>
-          <Animated.Text entering={ZoomIn.duration(500).springify()} style={{ fontSize: 56, textAlign: 'center', marginBottom: 8 }}>🔥</Animated.Text>
-          <Animated.Text entering={FadeInDown.duration(600).springify()} style={[styles.authTitle, { color: theme.text }]}>StreakSocial</Animated.Text>
+          <Animated.View entering={ZoomIn.duration(500).springify()} style={{ alignItems: 'center', marginBottom: 8 }}>
+            <Image source={require('./assets/streaksocial-logo-2.png')} style={{ width: 200, height: 120, resizeMode: 'contain' }} />
+          </Animated.View>
           <Animated.Text entering={FadeInDown.delay(100).duration(500)} style={[styles.authSubtitle, { color: theme.textSecondary }]}>
             {isLogin ? 'Welcome back!' : 'Create your account'}
           </Animated.Text>
@@ -673,7 +656,6 @@ function TabBar({ activeTab, onTabPress, notificationCount }: { activeTab: strin
     </View>
   );
 }
-
 
 // ============================================
 // HOME SCREEN
@@ -892,20 +874,21 @@ function HomeScreen({
                 }]}
               >
                 <AnimatedButton
-                  onPress={() => { haptic.medium(); onCheckIn(goal); }}
-                  hapticType="medium"
+                  onPress={() => { if (!goal.checkedToday) { haptic.medium(); onCheckIn(goal); } }}
+                  hapticType={goal.checkedToday ? 'selection' : 'medium'}
+                  disabled={goal.checkedToday}
                   style={{
                     width: 52,
                     height: 52,
                     borderRadius: 26,
-                    backgroundColor: isCheckInWindow ? theme.accent : theme.bgSecondary,
+                    backgroundColor: goal.checkedToday ? theme.accentSecondary : isCheckInWindow ? theme.accent : theme.bgSecondary,
                     justifyContent: 'center',
                     alignItems: 'center',
                     borderWidth: 2,
-                    borderColor: isCheckInWindow ? theme.accent : theme.border
+                    borderColor: goal.checkedToday ? theme.accentSecondary : isCheckInWindow ? theme.accent : theme.border
                   }}
                 >
-                  <Text style={{ fontSize: 24 }}>{isCheckInWindow ? '📷' : '➕'}</Text>
+                  <Text style={{ fontSize: 24 }}>{goal.checkedToday ? '✓' : isCheckInWindow ? '📷' : '➕'}</Text>
                 </AnimatedButton>
                 <View style={styles.goalContent}>
                   <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
@@ -1829,7 +1812,6 @@ function SettingsScreen() {
   );
 }
 
-
 // ============================================
 // TROPHY/COMPETE SCREEN
 // ============================================
@@ -2495,10 +2477,11 @@ function GoalDetailScreen({
 
         <AnimatedButton
           onPress={onCheckIn}
-          hapticType="medium"
-          style={[styles.actionButton, { backgroundColor: theme.accent }]}
+          hapticType={goal.checkedToday ? 'selection' : 'medium'}
+          disabled={goal.checkedToday}
+          style={[styles.actionButton, { backgroundColor: goal.checkedToday ? theme.accentSecondary : theme.accent }]}
         >
-          <Text style={styles.actionButtonText}>📷 Check in now</Text>
+          <Text style={styles.actionButtonText}>{goal.checkedToday ? '✅ Checked in today' : '📷 Check in now'}</Text>
         </AnimatedButton>
 
         <AnimatedButton
@@ -2524,7 +2507,7 @@ interface AgenticMessage extends ChatMessage {
 }
 
 function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
-  const { theme, isDark } = useContext(ThemeContext);
+  const { theme } = useContext(ThemeContext);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
@@ -3532,10 +3515,9 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
           <View style={[styles.container, { backgroundColor: theme.bg, justifyContent: 'center', alignItems: 'center' }]}>
-            <Animated.Text entering={ZoomIn.duration(600).springify()} style={{ fontSize: 64, marginBottom: 16 }}>🔥</Animated.Text>
-            <Animated.Text entering={FadeInDown.delay(200).duration(500)} style={{ fontSize: 32, fontWeight: '700', color: theme.text, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' }}>
-              StreakSocial
-            </Animated.Text>
+            <Animated.View entering={ZoomIn.duration(600).springify()} style={{ alignItems: 'center', marginBottom: 8 }}>
+              <Image source={require('./assets/streaksocial-logo-2.png')} style={{ width: 220, height: 132, resizeMode: 'contain' }} />
+            </Animated.View>
             <Animated.Text entering={FadeInDown.delay(400).duration(500)} style={{ fontSize: 14, color: theme.textSecondary, marginTop: 8 }}>
               Build habits together
             </Animated.Text>
@@ -3737,7 +3719,6 @@ const styles = StyleSheet.create({
   // Tab bar
   tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingTop: 12 },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
-  tabIcon: { fontSize: 22, opacity: 0.5 },
   tabLabel: { fontSize: 11, marginTop: 4 },
 
   // Typography
@@ -3752,12 +3733,8 @@ const styles = StyleSheet.create({
 
   // Goal cards
   goalCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
-  checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, marginRight: 14, justifyContent: 'center', alignItems: 'center' },
-  checkboxInner: { width: 12, height: 12, borderRadius: 4, opacity: 0 },
-  checkboxPulse: { width: 12, height: 12, borderRadius: 6 },
-  goalContent: { flex: 1 },
+  goalContent: { flex: 1, marginLeft: 14 },
   goalTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
-  goalMeta: { fontSize: 14 },
   streakBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   streakText: { fontSize: 14, fontWeight: '700' },
 
@@ -3786,13 +3763,7 @@ const styles = StyleSheet.create({
   feedImage: { width: '100%', height: 320, resizeMode: 'cover' },
   feedCaption: { fontSize: 16, padding: 16, paddingTop: 12, lineHeight: 22 },
   feedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 4 },
-  likeButton: { padding: 6 },
   feedTime: { fontSize: 13 },
-
-  // Empty state
-  emptyState: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20 },
-  emptyStateTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
-  emptyStateText: { fontSize: 14, textAlign: 'center' },
 
   // Settings
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 10 },
@@ -3808,8 +3779,6 @@ const styles = StyleSheet.create({
   propertyLabel: { width: 80, fontSize: 14 },
   propertyValue: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   propertyValueText: { fontSize: 14 },
-  progressTrack: { flex: 1, height: 6, borderRadius: 3, marginRight: 8 },
-  progressFill: { height: '100%', borderRadius: 3 },
   progressPercent: { fontSize: 13, width: 40 },
   divider: { height: 1, marginVertical: 8 },
 
@@ -3846,33 +3815,19 @@ const styles = StyleSheet.create({
   sendBtnDisabled: { opacity: 0.5 },
   sendBtnText: { color: '#FFF', fontWeight: '600' },
 
-  // Create goal
-  createButton: { padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
-  createButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
-
   // Camera
   cameraContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  camera: { flex: 1, width: '100%' },
   cameraOverlay: { flex: 1 },
   cameraTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   cameraClose: { color: '#FFF', fontSize: 28 },
   cameraCloseBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  cameraFlip: { color: '#FFF', fontSize: 28 },
   goalBadge: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   goalBadgeText: { color: '#FFF', fontSize: 14 },
-  captureRow: { position: 'absolute', bottom: 50, width: '100%', alignItems: 'center' },
   cameraBottomBar: { position: 'absolute', width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
   captureBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
   captureBtnInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
   flipBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginLeft: 24 },
   flipBtnText: { fontSize: 28 },
-  successToast: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#4CAF50', paddingVertical: 16, paddingHorizontal: 20, borderRadius: 12, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-  successToastText: { color: '#FFF', fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  previewImage: { width: '100%', height: '100%', borderRadius: 16 },
-  reviewContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  reviewTitle: { fontSize: 24, fontWeight: '700', marginBottom: 24 },
-  reviewPhoto: { width: 280, height: 280, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 32, overflow: 'hidden' },
-  reviewActions: { flexDirection: 'row', gap: 16 },
   retakeBtn: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
   submitBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
   submitBtnText: { color: '#FFF', fontWeight: '600' },
@@ -3910,8 +3865,7 @@ const styles = StyleSheet.create({
 
   // Auth
   authContainer: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, paddingTop: 60 },
-  authTitle: { fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 8, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
-  authSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 40 },
+  authSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
   authInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, marginBottom: 16 },
   authButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   authButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
