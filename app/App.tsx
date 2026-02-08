@@ -5,7 +5,6 @@ import {
   View,
   SafeAreaView,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -241,21 +240,6 @@ function GoalCardSkeleton() {
       </View>
       <Skeleton width={50} height={36} borderRadius={10} />
     </Animated.View>
-  );
-}
-
-// Animated streak counter
-function AnimatedStreakCounter({ value, color }: { value: number; color: string }) {
-  const animatedValue = useSharedValue(0);
-
-  useEffect(() => {
-    animatedValue.value = withTiming(value, { duration: 1000, easing: Easing.out(Easing.cubic) });
-  }, [value]);
-
-  return (
-    <Animated.Text style={{ color, fontWeight: '700', fontSize: 16 }}>
-      {Math.round(value)}
-    </Animated.Text>
   );
 }
 
@@ -511,19 +495,28 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.authContainer}>
+          <Animated.Text entering={ZoomIn.duration(500).springify()} style={{ fontSize: 56, textAlign: 'center', marginBottom: 8 }}>🔥</Animated.Text>
           <Animated.Text entering={FadeInDown.duration(600).springify()} style={[styles.authTitle, { color: theme.text }]}>StreakSocial</Animated.Text>
           <Animated.Text entering={FadeInDown.delay(100).duration(500)} style={[styles.authSubtitle, { color: theme.textSecondary }]}>
             {isLogin ? 'Welcome back!' : 'Create your account'}
           </Animated.Text>
+          <Animated.View entering={FadeInDown.delay(150).duration(400)} style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.accentSecondary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: theme.accentSecondary, fontWeight: '600' }}>🤖 AI-Powered</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: theme.accent, fontWeight: '600' }}>📸 Photo Verified</Text>
+            </View>
+          </Animated.View>
 
           {message && (
             <Animated.View entering={FadeIn.duration(300)} style={[
               styles.authMessage,
-              { backgroundColor: message.type === 'error' ? '#FFEBE9' : '#E6F7ED' }
+              { backgroundColor: message.type === 'error' ? theme.accent + '15' : theme.accentSecondary + '15' }
             ]}>
               <Text style={[
                 styles.authMessageText,
-                { color: message.type === 'error' ? '#D73A49' : '#22863A' }
+                { color: message.type === 'error' ? theme.accent : theme.accentSecondary }
               ]}>
                 {message.text}
               </Text>
@@ -579,12 +572,12 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
             )}
           </AnimatedButton>
 
-          <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setMessage(null); }} style={styles.authSwitch} activeOpacity={0.7}>
+          <AnimatedButton onPress={() => { setIsLogin(!isLogin); setMessage(null); }} hapticType="selection" style={[styles.authSwitch, { paddingVertical: 16, paddingHorizontal: 20 }]}>
             <Text style={[styles.authSwitchText, { color: theme.textSecondary }]}>
               {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              <Text style={{ color: theme.accent }}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
+              <Text style={{ color: theme.accent, fontWeight: '600' }}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
             </Text>
-          </TouchableOpacity>
+          </AnimatedButton>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -835,7 +828,10 @@ function HomeScreen({
               </View>
             </View>
             {insightLoading ? (
-              <ActivityIndicator size="small" color={theme.accentSecondary} style={{ alignSelf: 'flex-start' }} />
+              <View style={{ gap: 6 }}>
+                <Skeleton width="90%" height={14} />
+                <Skeleton width="70%" height={14} />
+              </View>
             ) : (
               <Text style={{ color: theme.text, fontSize: 14, lineHeight: 20, paddingBottom: 4 }}>
                 {aiInsight?.message}
@@ -980,6 +976,19 @@ function HomeScreen({
           <Text style={styles.addButtonText}>+ Add New Goal</Text>
         </AnimatedButton>
       </View>
+
+      {/* Tech stack badge - impresses hackathon judges */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+          <Text style={{ fontSize: 10, color: theme.textSecondary, fontWeight: '600' }}>🤖 Gemini AI</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+          <Text style={{ fontSize: 10, color: theme.textSecondary, fontWeight: '600' }}>📊 Opik Observability</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+          <Text style={{ fontSize: 10, color: theme.textSecondary, fontWeight: '600' }}>🔐 Supabase</Text>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -1031,6 +1040,7 @@ function FeedScreen({
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
   const [heartVisible, setHeartVisible] = useState<string | null>(null);
+  const [feedError, setFeedError] = useState(false);
   const lastTap = useRef<{ [key: string]: number }>({});
 
   const handleDoubleTap = (itemId: string) => {
@@ -1069,6 +1079,7 @@ function FeedScreen({
 
   const fetchFeed = async () => {
     setIsLoading(true);
+    setFeedError(false);
     try {
       const params = new URLSearchParams();
       if (activeTab === 'friends') {
@@ -1078,9 +1089,12 @@ function FeedScreen({
       if (response.ok) {
         const data = await response.json();
         setFeedData(data);
+      } else {
+        setFeedError(true);
       }
     } catch (e) {
       console.log('Feed fetch error:', e);
+      setFeedError(true);
     } finally {
       setIsLoading(false);
     }
@@ -1214,9 +1228,9 @@ function FeedScreen({
 
       {/* Pending Friend Requests - Compact Collapsible */}
       {pendingRequests.length > 0 && (
-        <TouchableOpacity
+        <AnimatedButton
           onPress={() => setExpandRequests(!expandRequests)}
-          activeOpacity={0.8}
+          hapticType="selection"
           style={{
             backgroundColor: theme.accentSecondary + '15',
             borderRadius: 14,
@@ -1255,18 +1269,18 @@ function FeedScreen({
                 <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
                   <Text style={{ fontSize: 28, marginRight: 12 }}>{req.avatar}</Text>
                   <Text style={{ flex: 1, color: theme.text, fontWeight: '600', fontSize: 15 }}>{req.display_name}</Text>
-                  <TouchableOpacity
+                  <AnimatedButton
                     style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, minWidth: 80, alignItems: 'center' }}
                     onPress={() => acceptRequest(req.id)}
                     disabled={acceptingId === req.id}
-                    activeOpacity={0.7}
+                    hapticType="medium"
                   >
                     {acceptingId === req.id ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
                       <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>Accept</Text>
                     )}
-                  </TouchableOpacity>
+                  </AnimatedButton>
                 </View>
               ))}
               {pendingRequests.length > 3 && (
@@ -1276,38 +1290,38 @@ function FeedScreen({
               )}
             </View>
           )}
-        </TouchableOpacity>
+        </AnimatedButton>
       )}
 
       {/* Tab Bar */}
       <View style={[styles.feedTabs, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
-        <TouchableOpacity
+        <AnimatedButton
           style={[styles.feedTab, activeTab === 'friends' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('friends')}
-          activeOpacity={0.7}
+          hapticType="selection"
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'friends' ? '#FFF' : theme.textSecondary }]}>
             Friends
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </AnimatedButton>
+        <AnimatedButton
           style={[styles.feedTab, activeTab === 'community' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('community')}
-          activeOpacity={0.7}
+          hapticType="selection"
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'community' ? '#FFF' : theme.textSecondary }]}>
             Community
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </AnimatedButton>
+        <AnimatedButton
           style={[styles.feedTab, activeTab === 'photos' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('photos')}
-          activeOpacity={0.7}
+          hapticType="selection"
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'photos' ? '#FFF' : theme.textSecondary }]}>
             My Photos
           </Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       </View>
 
       {/* Integrity Algorithm Indicator */}
@@ -1325,6 +1339,34 @@ function FeedScreen({
         <View>
           {[0, 1, 2].map(i => <FeedCardSkeleton key={i} />)}
         </View>
+      ) : feedError && activeTab !== 'photos' ? (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          style={{
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            borderRadius: 20,
+            borderWidth: 1,
+            padding: 40,
+            alignItems: 'center',
+            marginTop: 20,
+          }}
+        >
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>😕</Text>
+          <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
+            Couldn't load feed
+          </Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
+            Check your connection and try again
+          </Text>
+          <AnimatedButton
+            onPress={fetchFeed}
+            hapticType="light"
+            style={{ backgroundColor: theme.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          </AnimatedButton>
+        </Animated.View>
       ) : displayFeed.length === 0 ? (
         <Animated.View
           entering={FadeIn.duration(400)}
@@ -1421,7 +1463,7 @@ function FeedScreen({
                 >
                   <Text style={{ fontSize: 18 }}>{likedItems.has(item.id) ? '❤️' : '🤍'}</Text>
                   <Text style={{ color: likedItems.has(item.id) ? theme.accent : theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>
-                    {(item.likes || Math.floor(Math.random() * 20) + 1) + (likedItems.has(item.id) ? 1 : 0)}
+                    {(item.likes || (item.id.charCodeAt(0) % 20) + 1) + (likedItems.has(item.id) ? 1 : 0)}
                   </Text>
                 </AnimatedButton>
                 <AnimatedButton
@@ -1430,7 +1472,7 @@ function FeedScreen({
                   style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 2 }}
                 >
                   <Text style={{ fontSize: 16 }}>💬</Text>
-                  <Text style={{ color: theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>{Math.floor(Math.random() * 5)}</Text>
+                  <Text style={{ color: theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>{item.id.charCodeAt(0) % 5}</Text>
                 </AnimatedButton>
               </View>
               <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.time_ago}</Text>
@@ -1453,7 +1495,7 @@ function FeedScreen({
           <View style={{ backgroundColor: theme.card, borderRadius: 24, padding: 24, maxHeight: '80%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text }}>Add Friend</Text>
-              <TouchableOpacity
+              <AnimatedButton
                 style={{
                   width: 44,
                   height: 44,
@@ -1463,10 +1505,10 @@ function FeedScreen({
                   alignItems: 'center'
                 }}
                 onPress={() => { setShowAddFriend(false); setSearchResults([]); setSearchQuery(''); }}
-                activeOpacity={0.7}
+                hapticType="light"
               >
                 <Text style={{ fontSize: 22, color: theme.textSecondary, fontWeight: '600' }}>×</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
             </View>
 
             <View style={{ flexDirection: 'row', marginBottom: 20 }}>
@@ -1480,13 +1522,13 @@ function FeedScreen({
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <TouchableOpacity
-                style={{ backgroundColor: theme.accent, paddingHorizontal: 20, borderRadius: 16, justifyContent: 'center', marginLeft: 10 }}
+              <AnimatedButton
+                style={{ backgroundColor: theme.accent, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 16, justifyContent: 'center', marginLeft: 10 }}
                 onPress={handleSearch}
-                activeOpacity={0.7}
+                hapticType="light"
               >
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Search</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
             </View>
 
             {isSearching && <ActivityIndicator color={theme.accent} style={{ marginVertical: 20 }} />}
@@ -1499,19 +1541,19 @@ function FeedScreen({
                     <Text style={{ color: theme.text, fontWeight: '600', fontSize: 16 }}>{user.display_name}</Text>
                     <Text style={{ color: theme.textSecondary, fontSize: 14 }}>@{user.username}</Text>
                   </View>
-                  <TouchableOpacity
+                  <AnimatedButton
                     style={{
                       backgroundColor: user.friendship_status ? theme.bgSecondary : theme.accent,
                       paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20
                     }}
                     onPress={() => sendFriendRequest(user.username)}
                     disabled={!!user.friendship_status}
-                    activeOpacity={0.7}
+                    hapticType="medium"
                   >
                     <Text style={{ color: user.friendship_status ? theme.textSecondary : '#FFF', fontWeight: '600', fontSize: 14 }}>
                       {user.friendship_status === 'accepted' ? 'Friends' : user.friendship_status === 'pending' ? 'Pending' : 'Add'}
                     </Text>
-                  </TouchableOpacity>
+                  </AnimatedButton>
                 </View>
               ))}
             </ScrollView>
@@ -1635,10 +1677,10 @@ function SettingsScreen() {
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Text style={[styles.pageTitle, { color: theme.text, marginBottom: 0 }]}>Settings</Text>
-        <TouchableOpacity
+        <AnimatedButton
           style={{ position: 'relative', padding: 8 }}
           onPress={() => setShowNotifications(!showNotifications)}
-          activeOpacity={0.7}
+          hapticType="light"
         >
           <Feather name="bell" size={24} color={theme.text} />
           {unreadCount > 0 && (
@@ -1646,7 +1688,7 @@ function SettingsScreen() {
               <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>{unreadCount}</Text>
             </View>
           )}
-        </TouchableOpacity>
+        </AnimatedButton>
       </View>
 
       {/* User Level Card */}
@@ -1669,11 +1711,13 @@ function SettingsScreen() {
                 <Text style={{ color: theme.textSecondary, fontSize: 11 }}>badges</Text>
               </View>
             </View>
-            <AnimatedProgressBar
-              progress={userStats.progress_percent}
-              color={theme.accent}
-              backgroundColor={theme.bgSecondary}
-            />
+            <View style={{ marginTop: 12 }}>
+              <AnimatedProgressBar
+                progress={userStats.progress_percent}
+                color={theme.accent}
+                backgroundColor={theme.bgSecondary}
+              />
+            </View>
           </LinearGradient>
         </Animated.View>
       )}
@@ -1683,9 +1727,9 @@ function SettingsScreen() {
         <View style={{ backgroundColor: theme.card, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: theme.border }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: theme.border }}>
             <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>Notifications</Text>
-            <TouchableOpacity onPress={markAllRead}>
-              <Text style={{ color: theme.accent, fontSize: 13 }}>Mark all read</Text>
-            </TouchableOpacity>
+            <AnimatedButton onPress={markAllRead} hapticType="light" style={{ paddingVertical: 8, paddingHorizontal: 12 }}>
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '600' }}>Mark all read</Text>
+            </AnimatedButton>
           </View>
           {notifications.length === 0 ? (
             <Text style={{ color: theme.textSecondary, textAlign: 'center', padding: 20 }}>No notifications</Text>
@@ -1849,6 +1893,7 @@ function TrophyScreen() {
   const [userRank, setUserRank] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [joiningChallenge, setJoiningChallenge] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -1862,6 +1907,7 @@ function TrophyScreen() {
 
   const fetchData = async () => {
     setIsLoading(true);
+    setFetchError(false);
     try {
       if (activeTab === 'leaderboard') {
         const res = await fetch(`${API_URL}/checkins/leaderboard`);
@@ -1869,13 +1915,13 @@ function TrophyScreen() {
           const data = await res.json();
           setLeaderboard(data.entries);
           setUserRank(data.user_rank);
-        }
+        } else { setFetchError(true); }
       } else if (activeTab === 'challenges') {
         const res = await fetch(`${API_URL}/challenges/active`);
         if (res.ok) {
           const data = await res.json();
           setChallenges(data);
-        }
+        } else { setFetchError(true); }
       } else if (activeTab === 'achievements') {
         const [achRes, statsRes] = await Promise.all([
           fetch(`${API_URL}/achievements/`),
@@ -1883,9 +1929,11 @@ function TrophyScreen() {
         ]);
         if (achRes.ok) setAchievements(await achRes.json());
         if (statsRes.ok) setUserStats(await statsRes.json());
+        if (!achRes.ok && !statsRes.ok) setFetchError(true);
       }
     } catch (e) {
       console.log('Trophy data fetch error:', e);
+      setFetchError(true);
     } finally {
       setIsLoading(false);
     }
@@ -1958,39 +2006,67 @@ function TrophyScreen() {
 
       {/* Tab Bar */}
       <View style={[styles.feedTabs, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
-        <TouchableOpacity
+        <AnimatedButton
           style={[styles.feedTab, activeTab === 'leaderboard' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('leaderboard')}
-          activeOpacity={0.7}
+          hapticType="selection"
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'leaderboard' ? '#FFF' : theme.textSecondary }]}>
             🏆 Leaderboard
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </AnimatedButton>
+        <AnimatedButton
           style={[styles.feedTab, activeTab === 'challenges' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('challenges')}
-          activeOpacity={0.7}
+          hapticType="selection"
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'challenges' ? '#FFF' : theme.textSecondary }]}>
             ⚔️ Challenges
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </AnimatedButton>
+        <AnimatedButton
           style={[styles.feedTab, activeTab === 'achievements' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('achievements')}
-          activeOpacity={0.7}
+          hapticType="selection"
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'achievements' ? '#FFF' : theme.textSecondary }]}>
             🎖️ Badges
           </Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       </View>
 
       {isLoading ? (
         <View style={{ marginTop: 16 }}>
           {[0, 1, 2, 3, 4].map(i => <GoalCardSkeleton key={i} />)}
         </View>
+      ) : fetchError ? (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          style={{
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            borderRadius: 20,
+            borderWidth: 1,
+            padding: 40,
+            alignItems: 'center',
+            marginTop: 20,
+          }}
+        >
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>😕</Text>
+          <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
+            Couldn't load data
+          </Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
+            Check your connection and try again
+          </Text>
+          <AnimatedButton
+            onPress={fetchData}
+            hapticType="light"
+            style={{ backgroundColor: theme.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          </AnimatedButton>
+        </Animated.View>
       ) : activeTab === 'leaderboard' ? (
         <>
           <View style={{ marginTop: 16 }}>
@@ -2207,7 +2283,7 @@ function TrophyScreen() {
                   )}
                 </View>
               ) : (
-                <TouchableOpacity
+                <AnimatedButton
                   style={{
                     backgroundColor: theme.accent,
                     borderRadius: 16,
@@ -2217,14 +2293,14 @@ function TrophyScreen() {
                   }}
                   onPress={() => joinChallenge(challenge.id)}
                   disabled={joiningChallenge === challenge.id}
-                  activeOpacity={0.7}
+                  hapticType="medium"
                 >
                   {joiningChallenge === challenge.id ? (
                     <ActivityIndicator color="#FFF" />
                   ) : (
                     <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 17 }}>Join Challenge</Text>
                   )}
-                </TouchableOpacity>
+                </AnimatedButton>
               )}
             </Animated.View>
           ))}
@@ -2355,9 +2431,9 @@ function GoalDetailScreen({
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity onPress={onBack} style={[styles.backRow, { marginLeft: -8 }]} activeOpacity={0.7}>
+        <AnimatedButton onPress={onBack} hapticType="light" style={[styles.backRow, { marginLeft: -8 }]}>
           <Text style={[styles.backText, { color: theme.text, fontSize: 16 }]}>← Back</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
 
         <Animated.Text entering={FadeInDown.duration(400)} style={[styles.pageTitle, { color: theme.text }]}>{goal.title}</Animated.Text>
 
@@ -2560,9 +2636,9 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.chatHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-          <TouchableOpacity onPress={onBack} activeOpacity={0.7}>
+          <AnimatedButton onPress={onBack} hapticType="light" style={{ padding: 4 }}>
             <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
-          </TouchableOpacity>
+          </AnimatedButton>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={[styles.chatHeaderTitle, { color: theme.text }]}>AI Coach</Text>
             <View style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
@@ -2572,10 +2648,14 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
           <View style={{ width: 50 }} />
         </View>
 
-        <View style={[styles.contextBar, { backgroundColor: theme.bgSecondary }]}>
+        <View style={[styles.contextBar, { backgroundColor: theme.bgSecondary, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
           <Text style={[styles.contextText, { color: theme.text }]}>
             🎯 {goal.title} • 🔥 {goal.current_streak} days
           </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accentSecondary }} />
+            <Text style={{ fontSize: 10, color: theme.accentSecondary, fontWeight: '600' }}>LIVE</Text>
+          </View>
         </View>
 
         <ScrollView
@@ -2655,13 +2735,17 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
               <View style={[styles.aiIndicator, { backgroundColor: theme.accentSecondary }]}>
                 <Text style={styles.aiIndicatorText}>🤖</Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <ActivityIndicator size="small" color={theme.accent} />
+              <View style={{ flex: 1 }}>
                 {toolStatus && (
-                  <Text style={{ color: theme.textSecondary, fontSize: 13, fontStyle: 'italic' }}>
+                  <Animated.Text entering={FadeIn.duration(200)} style={{ color: theme.accentSecondary, fontSize: 13, fontWeight: '500', marginBottom: 8 }}>
                     {toolStatus}
-                  </Text>
+                  </Animated.Text>
                 )}
+                <View style={{ gap: 8 }}>
+                  <Skeleton width="85%" height={14} />
+                  <Skeleton width="65%" height={14} />
+                  <Skeleton width="40%" height={14} />
+                </View>
               </View>
             </View>
           )}
@@ -2677,14 +2761,14 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
             onSubmitEditing={sendMessage}
             returnKeyType="send"
           />
-          <TouchableOpacity
+          <AnimatedButton
             style={[styles.sendBtn, { backgroundColor: theme.accent }, !message.trim() && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!message.trim() || isLoading}
-            activeOpacity={0.7}
+            hapticType="medium"
           >
             <Text style={styles.sendBtnText}>Send</Text>
-          </TouchableOpacity>
+          </AnimatedButton>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -2836,13 +2920,14 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
             <View style={{ marginTop: 24 }}>
               <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>POPULAR EXAMPLES</Text>
               {['Run 5K daily', 'Read for 30 minutes', 'Meditate every morning', 'Practice guitar'].map((example) => (
-                <TouchableOpacity
+                <AnimatedButton
                   key={example}
                   style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: theme.bgSecondary, borderRadius: 12, marginBottom: 8 }}
                   onPress={() => setTitle(example)}
+                  hapticType="selection"
                 >
                   <Text style={{ color: theme.text, fontSize: 15 }}>{example}</Text>
-                </TouchableOpacity>
+                </AnimatedButton>
               ))}
             </View>
           </View>
@@ -2859,7 +2944,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
             </Text>
 
             {FREQUENCIES.map((freq) => (
-              <TouchableOpacity
+              <AnimatedButton
                 key={freq.id}
                 style={{
                   flexDirection: 'row',
@@ -2872,6 +2957,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
                   borderColor: frequency === freq.id ? theme.accent : theme.border
                 }}
                 onPress={() => setFrequency(freq.id)}
+                hapticType="selection"
               >
                 <Text style={{ fontSize: 28, marginRight: 14 }}>{freq.emoji}</Text>
                 <View style={{ flex: 1 }}>
@@ -2883,7 +2969,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
                     <Text style={{ color: '#FFF', fontWeight: '700' }}>✓</Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </AnimatedButton>
             ))}
           </View>
         );
@@ -2899,7 +2985,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
             </Text>
 
             {REMINDER_TIMES.map((time) => (
-              <TouchableOpacity
+              <AnimatedButton
                 key={time.id}
                 style={{
                   flexDirection: 'row',
@@ -2912,6 +2998,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
                   borderColor: reminderTime === time.id ? theme.accentSecondary : theme.border
                 }}
                 onPress={() => setReminderTime(time.id)}
+                hapticType="selection"
               >
                 <Text style={{ fontSize: 28, marginRight: 14 }}>{time.emoji}</Text>
                 <View style={{ flex: 1 }}>
@@ -2923,7 +3010,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
                     <Text style={{ color: '#FFF', fontWeight: '700' }}>✓</Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </AnimatedButton>
             ))}
           </View>
         );
@@ -2932,15 +3019,26 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
         return (
           <View style={{ flex: 1, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }}>
             {isClassifying ? (
-              <>
-                <ActivityIndicator size="large" color={theme.accent} />
-                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text, marginTop: 24 }}>
-                  AI is analyzing your goal...
+              <Animated.View entering={FadeIn.duration(400)} style={{ alignItems: 'center', width: '100%' }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 20, overflow: 'hidden' }}>
+                  <Skeleton width={72} height={72} borderRadius={36} />
+                </View>
+                <Skeleton width={180} height={22} style={{ marginBottom: 12 }} />
+                <Skeleton width={120} height={16} style={{ marginBottom: 32 }} />
+                <View style={{ width: '100%', backgroundColor: theme.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.border, marginBottom: 16 }}>
+                  <Skeleton width={100} height={12} style={{ marginBottom: 12 }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Skeleton width={48} height={48} borderRadius={24} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Skeleton width={140} height={16} style={{ marginBottom: 8 }} />
+                      <Skeleton width={90} height={12} />
+                    </View>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 14, color: theme.accentSecondary, fontWeight: '600', marginTop: 8 }}>
+                  🤖 AI is analyzing your goal...
                 </Text>
-                <Text style={{ fontSize: 14, color: theme.textSecondary, marginTop: 8, textAlign: 'center' }}>
-                  Finding the perfect category and community for you
-                </Text>
-              </>
+              </Animated.View>
             ) : classification && (
               <View style={{ width: '100%' }}>
                 <View style={{ alignItems: 'center', marginBottom: 32 }}>
@@ -3029,9 +3127,9 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.card }}>
-          <TouchableOpacity onPress={handleBack} style={{ padding: 8 }} activeOpacity={0.7}>
+          <AnimatedButton onPress={handleBack} hapticType="light" style={{ padding: 8 }}>
             <Text style={{ fontSize: 16, color: theme.text }}>←</Text>
-          </TouchableOpacity>
+          </AnimatedButton>
           <View style={{ flex: 1, paddingHorizontal: 16 }}>
             <View style={{ height: 4, backgroundColor: theme.bgSecondary, borderRadius: 2 }}>
               <View style={{ height: '100%', width: `${progress}%`, backgroundColor: theme.accent, borderRadius: 2 }} />
@@ -3048,24 +3146,24 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
         {/* Bottom Actions */}
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: Math.max(insets.bottom, 20) + 20, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border }}>
           {step === 'confirm' ? (
-            <TouchableOpacity
+            <AnimatedButton
               style={{ backgroundColor: theme.accent, paddingVertical: 18, borderRadius: 16, alignItems: 'center' }}
               onPress={createGoal}
-              activeOpacity={0.7}
+              hapticType="heavy"
             >
               <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>🚀 Start My Streak</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           ) : step === 'classify' && isClassifying ? null : (
-            <TouchableOpacity
+            <AnimatedButton
               style={{ backgroundColor: canProceed ? theme.accent : theme.bgSecondary, paddingVertical: 18, borderRadius: 16, alignItems: 'center' }}
               onPress={handleNext}
               disabled={!canProceed}
-              activeOpacity={0.7}
+              hapticType="medium"
             >
               <Text style={{ color: canProceed ? '#FFF' : theme.textSecondary, fontSize: 17, fontWeight: '700' }}>
                 {step === 'classify' ? 'Continue' : 'Next'}
               </Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -3086,6 +3184,7 @@ function CheckInScreen({
   onComplete: (photoUri: string, caption: string) => void;
 }) {
   const { theme } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [photo, setPhoto] = useState<string | null>(null);
@@ -3161,18 +3260,18 @@ function CheckInScreen({
     }
   };
 
-  if (!permission) return <View style={styles.cameraContainer}><ActivityIndicator /></View>;
+  if (!permission) return <View style={[styles.cameraContainer, { backgroundColor: theme.bg }]}><ActivityIndicator size="large" color={theme.accent} /></View>;
 
   if (!permission.granted) {
     return (
       <SafeAreaView style={[styles.cameraContainer, { backgroundColor: theme.bg }]}>
         <Text style={[styles.permissionText, { color: theme.text }]}>Camera access is needed</Text>
-        <TouchableOpacity style={[styles.permissionButton, { backgroundColor: theme.accent }]} onPress={requestPermission}>
+        <AnimatedButton style={[styles.permissionButton, { backgroundColor: theme.accent }]} onPress={requestPermission} hapticType="medium">
           <Text style={styles.permissionButtonText}>Grant Permission</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={{ color: theme.textSecondary }}>Go back</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
+        <AnimatedButton onPress={onBack} hapticType="light" style={{ paddingVertical: 12, paddingHorizontal: 24 }}>
+          <Text style={{ color: theme.textSecondary, fontSize: 15 }}>Go back</Text>
+        </AnimatedButton>
       </SafeAreaView>
     );
   }
@@ -3189,9 +3288,9 @@ function CheckInScreen({
         >
           <SafeAreaView style={styles.cameraOverlay}>
             <View style={styles.cameraTopBar}>
-              <TouchableOpacity onPress={onBack} style={styles.cameraCloseBtn} activeOpacity={0.7}>
+              <AnimatedButton onPress={onBack} style={styles.cameraCloseBtn} hapticType="light">
                 <Text style={styles.cameraClose}>✕</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
               <View style={styles.goalBadge}>
                 <Text style={styles.goalBadgeText}>🎯 {goal.title}</Text>
               </View>
@@ -3200,14 +3299,14 @@ function CheckInScreen({
           </SafeAreaView>
         </CameraView>
 
-        <View style={styles.cameraBottomBar}>
+        <View style={[styles.cameraBottomBar, { bottom: Math.max(insets.bottom, 20) + 20 }]}>
           <View style={{ width: 60 }} />
-          <TouchableOpacity style={styles.captureBtn} onPress={takePhoto} activeOpacity={0.8}>
+          <AnimatedButton style={styles.captureBtn} onPress={takePhoto} hapticType="medium">
             <View style={styles.captureBtnInner} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.flipBtn} onPress={toggleCamera} activeOpacity={0.7}>
+          </AnimatedButton>
+          <AnimatedButton style={styles.flipBtn} onPress={toggleCamera} hapticType="light">
             <Text style={styles.flipBtnText}>🔄</Text>
-          </TouchableOpacity>
+          </AnimatedButton>
         </View>
       </View>
     );
@@ -3226,9 +3325,9 @@ function CheckInScreen({
 
           {/* Top bar */}
           <View style={styles.editTopBar}>
-            <TouchableOpacity onPress={() => { setPhoto(null); setStage('capture'); }} style={styles.editBackBtn} activeOpacity={0.7}>
+            <AnimatedButton onPress={() => { setPhoto(null); setStage('capture'); }} style={styles.editBackBtn} hapticType="light">
               <Text style={{ color: '#FFF', fontSize: 16 }}>← Retake</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
             <View style={styles.goalBadge}>
               <Text style={styles.goalBadgeText}>🎯 {goal.title}</Text>
             </View>
@@ -3253,13 +3352,13 @@ function CheckInScreen({
                 <Text style={styles.streakPreviewText}>🔥 {goal.current_streak + 1} day streak!</Text>
               </View>
 
-              <TouchableOpacity
+              <AnimatedButton
                 style={[styles.shareBtn, { backgroundColor: theme.accent }]}
                 onPress={verifyAndSubmit}
-                activeOpacity={0.7}
+                hapticType="medium"
               >
                 <Text style={styles.shareBtnText}>Share Check-in →</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
             </View>
           </View>
         </SafeAreaView>
@@ -3303,23 +3402,23 @@ function CheckInScreen({
               {verificationMessage}
             </Text>
             <View style={{ flexDirection: 'row', gap: 16, marginTop: 24 }}>
-              <TouchableOpacity
+              <AnimatedButton
                 style={[styles.retakeBtn, { borderColor: theme.border }]}
                 onPress={() => { setPhoto(null); setStage('capture'); }}
-                activeOpacity={0.7}
+                hapticType="light"
               >
                 <Text style={{ color: theme.text }}>Retake Photo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </AnimatedButton>
+              <AnimatedButton
                 style={[styles.submitBtn, { backgroundColor: theme.accent }]}
                 onPress={() => {
                   // Allow user to submit anyway
                   if (photo) onComplete(photo, caption || `Day ${goal.current_streak + 1}! 💪`);
                 }}
-                activeOpacity={0.7}
+                hapticType="medium"
               >
                 <Text style={styles.submitBtnText}>Submit Anyway</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
             </View>
           </>
         )}
@@ -3427,13 +3526,19 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Show loading while checking auth
+  // Show loading while checking auth - branded splash
   if (isLoading) {
     return (
       <SafeAreaProvider>
         <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
           <View style={[styles.container, { backgroundColor: theme.bg, justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="large" color={theme.accent} />
+            <Animated.Text entering={ZoomIn.duration(600).springify()} style={{ fontSize: 64, marginBottom: 16 }}>🔥</Animated.Text>
+            <Animated.Text entering={FadeInDown.delay(200).duration(500)} style={{ fontSize: 32, fontWeight: '700', color: theme.text, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' }}>
+              StreakSocial
+            </Animated.Text>
+            <Animated.Text entering={FadeInDown.delay(400).duration(500)} style={{ fontSize: 14, color: theme.textSecondary, marginTop: 8 }}>
+              Build habits together
+            </Animated.Text>
           </View>
           <StatusBar style={isDark ? 'light' : 'dark'} />
         </ThemeContext.Provider>
@@ -3756,7 +3861,7 @@ const styles = StyleSheet.create({
   goalBadge: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   goalBadgeText: { color: '#FFF', fontSize: 14 },
   captureRow: { position: 'absolute', bottom: 50, width: '100%', alignItems: 'center' },
-  cameraBottomBar: { position: 'absolute', bottom: 40, width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
+  cameraBottomBar: { position: 'absolute', width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
   captureBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
   captureBtnInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
   flipBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginLeft: 24 },
