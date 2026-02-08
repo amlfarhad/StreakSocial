@@ -14,14 +14,38 @@ import {
   Dimensions,
   Image,
   Switch,
-  useColorScheme
+  useColorScheme,
+  Modal,
+  RefreshControl,
+  Pressable
 } from 'react-native';
-import { useState, useRef, useEffect, createContext, useContext } from 'react';
+import { useState, useRef, useEffect, createContext, useContext, useCallback } from 'react';
+import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Markdown from 'react-native-markdown-display';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withSequence,
+  withDelay,
+  interpolate,
+  Extrapolate,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  FadeOut,
+  SlideInRight,
+  ZoomIn,
+  runOnJS,
+  Easing
+} from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Use environment variable for production, fallback to local for dev
@@ -58,6 +82,340 @@ const ThemeContext = createContext<{ theme: Theme; isDark: boolean; toggle: () =
   isDark: false,
   toggle: () => { },
 });
+
+// ============================================
+// HAPTIC HELPERS
+// ============================================
+const haptic = {
+  light: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+  medium: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
+  heavy: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy),
+  success: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+  warning: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning),
+  error: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+  selection: () => Haptics.selectionAsync(),
+};
+
+// ============================================
+// ANIMATED COMPONENTS
+// ============================================
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Animated button with scale effect
+function AnimatedButton({
+  children,
+  onPress,
+  style,
+  disabled,
+  hapticType = 'light'
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+  style?: any;
+  disabled?: boolean;
+  hapticType?: 'light' | 'medium' | 'heavy' | 'selection';
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+  };
+
+  const handlePress = () => {
+    if (disabled) return;
+    haptic[hapticType]();
+    onPress();
+  };
+
+  return (
+    <AnimatedPressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+      style={[animatedStyle, style]}
+      disabled={disabled}
+    >
+      {children}
+    </AnimatedPressable>
+  );
+}
+
+// Skeleton loader component
+function Skeleton({ width, height, borderRadius = 8, style }: { width: number | string; height: number; borderRadius?: number; style?: any }) {
+  const { theme } = useContext(ThemeContext);
+  const opacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    opacity.value = withSequence(
+      withTiming(0.7, { duration: 800 }),
+      withTiming(0.3, { duration: 800 })
+    );
+    const interval = setInterval(() => {
+      opacity.value = withSequence(
+        withTiming(0.7, { duration: 800 }),
+        withTiming(0.3, { duration: 800 })
+      );
+    }, 1600);
+    return () => clearInterval(interval);
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          borderRadius,
+          backgroundColor: theme.bgSecondary,
+        },
+        animatedStyle,
+        style,
+      ]}
+    />
+  );
+}
+
+// Card skeleton for feed
+function FeedCardSkeleton() {
+  const { theme } = useContext(ThemeContext);
+  return (
+    <Animated.View
+      entering={FadeIn.duration(300)}
+      style={{
+        backgroundColor: theme.card,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: theme.border,
+        marginBottom: 18,
+        padding: 16,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Skeleton width={44} height={44} borderRadius={22} />
+        <View style={{ marginLeft: 12, flex: 1 }}>
+          <Skeleton width={120} height={16} style={{ marginBottom: 8 }} />
+          <Skeleton width={80} height={12} />
+        </View>
+        <Skeleton width={70} height={28} borderRadius={14} />
+      </View>
+      <Skeleton width="100%" height={200} borderRadius={12} style={{ marginBottom: 16 }} />
+      <Skeleton width="80%" height={14} style={{ marginBottom: 8 }} />
+      <Skeleton width="60%" height={14} />
+    </Animated.View>
+  );
+}
+
+// Goal card skeleton
+function GoalCardSkeleton() {
+  const { theme } = useContext(ThemeContext);
+  return (
+    <Animated.View
+      entering={FadeIn.duration(300)}
+      style={{
+        backgroundColor: theme.card,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: theme.border,
+        padding: 16,
+        marginBottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      <Skeleton width={52} height={52} borderRadius={26} />
+      <View style={{ marginLeft: 14, flex: 1 }}>
+        <Skeleton width={140} height={18} style={{ marginBottom: 8 }} />
+        <Skeleton width={100} height={14} />
+      </View>
+      <Skeleton width={50} height={36} borderRadius={10} />
+    </Animated.View>
+  );
+}
+
+// Animated streak counter
+function AnimatedStreakCounter({ value, color }: { value: number; color: string }) {
+  const animatedValue = useSharedValue(0);
+
+  useEffect(() => {
+    animatedValue.value = withTiming(value, { duration: 1000, easing: Easing.out(Easing.cubic) });
+  }, [value]);
+
+  return (
+    <Animated.Text style={{ color, fontWeight: '700', fontSize: 16 }}>
+      {Math.round(value)}
+    </Animated.Text>
+  );
+}
+
+// Heart animation for double-tap like
+function HeartAnimation({ visible, onComplete }: { visible: boolean; onComplete: () => void }) {
+  const scale = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      scale.value = withSequence(
+        withSpring(1.2, { damping: 8, stiffness: 400 }),
+        withSpring(1, { damping: 10, stiffness: 300 })
+      );
+      opacity.value = withSequence(
+        withTiming(1, { duration: 100 }),
+        withDelay(600, withTiming(0, { duration: 300 }))
+      );
+      setTimeout(onComplete, 1000);
+    }
+  }, [visible]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          marginLeft: -40,
+          marginTop: -40,
+          zIndex: 100,
+        },
+        animatedStyle,
+      ]}
+    >
+      <Text style={{ fontSize: 80 }}>❤️</Text>
+    </Animated.View>
+  );
+}
+
+// Confetti particle
+function ConfettiParticle({ delay, startX, color }: { delay: number; startX: number; color: string }) {
+  const translateY = useSharedValue(-50);
+  const translateX = useSharedValue(startX);
+  const rotate = useSharedValue(0);
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    translateY.value = withDelay(delay, withTiming(Dimensions.get('window').height + 50, { duration: 3000, easing: Easing.linear }));
+    translateX.value = withDelay(delay, withTiming(startX + (Math.random() - 0.5) * 100, { duration: 3000 }));
+    rotate.value = withDelay(delay, withTiming(720, { duration: 3000 }));
+    opacity.value = withDelay(delay + 2000, withTiming(0, { duration: 1000 }));
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: translateY.value },
+      { translateX: translateX.value },
+      { rotate: `${rotate.value}deg` },
+    ],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          width: 10,
+          height: 10,
+          backgroundColor: color,
+          borderRadius: 2,
+        },
+        animatedStyle,
+      ]}
+    />
+  );
+}
+
+// Full confetti effect
+function ConfettiEffect({ active }: { active: boolean }) {
+  const colors = ['#E07A5F', '#81B29A', '#F4D35E', '#EE6C4D', '#3D5A80', '#98C1D9'];
+  const particles = Array.from({ length: 50 }, (_, i) => ({
+    id: i,
+    delay: Math.random() * 500,
+    startX: Math.random() * Dimensions.get('window').width,
+    color: colors[Math.floor(Math.random() * colors.length)],
+  }));
+
+  if (!active) return null;
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+      {particles.map((p) => (
+        <ConfettiParticle key={p.id} delay={p.delay} startX={p.startX} color={p.color} />
+      ))}
+    </View>
+  );
+}
+
+// Streak heat map (mini calendar)
+function StreakHeatMap({ streak, checkedDays }: { streak: number; checkedDays: boolean[] }) {
+  const { theme } = useContext(ThemeContext);
+  const weeks = 4;
+  const days = 7;
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 3 }}>
+      {Array.from({ length: weeks }, (_, weekIdx) => (
+        <View key={weekIdx} style={{ gap: 3 }}>
+          {Array.from({ length: days }, (_, dayIdx) => {
+            const dayIndex = weekIdx * 7 + dayIdx;
+            const isActive = dayIndex < streak;
+            const intensity = isActive ? Math.min(1, 0.3 + (dayIndex / 28) * 0.7) : 0;
+            return (
+              <View
+                key={dayIdx}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  backgroundColor: isActive
+                    ? `rgba(224, 122, 95, ${intensity})`
+                    : theme.bgSecondary,
+                }}
+              />
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// Animated progress bar
+function AnimatedProgressBar({ progress, color, backgroundColor }: { progress: number; color: string; backgroundColor: string }) {
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.value = withTiming(progress, { duration: 800, easing: Easing.out(Easing.cubic) });
+  }, [progress]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: `${width.value}%`,
+  }));
+
+  return (
+    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor, marginRight: 8, overflow: 'hidden' }}>
+      <Animated.View style={[{ height: '100%', borderRadius: 3, backgroundColor: color }, animatedStyle]} />
+    </View>
+  );
+}
 
 // ============================================
 // TYPES
@@ -153,13 +511,13 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.authContainer}>
-          <Text style={[styles.authTitle, { color: theme.text }]}>StreakSocial</Text>
-          <Text style={[styles.authSubtitle, { color: theme.textSecondary }]}>
+          <Animated.Text entering={FadeInDown.duration(600).springify()} style={[styles.authTitle, { color: theme.text }]}>StreakSocial</Animated.Text>
+          <Animated.Text entering={FadeInDown.delay(100).duration(500)} style={[styles.authSubtitle, { color: theme.textSecondary }]}>
             {isLogin ? 'Welcome back!' : 'Create your account'}
-          </Text>
+          </Animated.Text>
 
           {message && (
-            <View style={[
+            <Animated.View entering={FadeIn.duration(300)} style={[
               styles.authMessage,
               { backgroundColor: message.type === 'error' ? '#FFEBE9' : '#E6F7ED' }
             ]}>
@@ -169,52 +527,59 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
               ]}>
                 {message.text}
               </Text>
-            </View>
+            </Animated.View>
           )}
 
           {!isLogin && (
-            <TextInput
-              style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholder="Your name"
-              placeholderTextColor={theme.textSecondary}
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
-            />
+            <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+              <TextInput
+                style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                placeholder="Your name"
+                placeholderTextColor={theme.textSecondary}
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+              />
+            </Animated.View>
           )}
 
-          <TextInput
-            style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-            placeholder="Email"
-            placeholderTextColor={theme.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
+          <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+            <TextInput
+              style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              placeholder="Email"
+              placeholderTextColor={theme.textSecondary}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </Animated.View>
 
-          <TextInput
-            style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-            placeholder="Password"
-            placeholderTextColor={theme.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+            <TextInput
+              style={[styles.authInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              placeholder="Password"
+              placeholderTextColor={theme.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </Animated.View>
 
-          <TouchableOpacity
-            style={[styles.authButton, { backgroundColor: theme.accent }]}
+          <AnimatedButton
             onPress={handleAuth}
             disabled={isLoading}
+            hapticType="medium"
+            style={[styles.authButton, { backgroundColor: theme.accent }]}
           >
             {isLoading ? (
               <ActivityIndicator color="#FFF" />
             ) : (
               <Text style={styles.authButtonText}>{isLogin ? 'Sign In' : 'Create Account'}</Text>
             )}
-          </TouchableOpacity>
+          </AnimatedButton>
 
-          <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setMessage(null); }} style={styles.authSwitch}>
+          <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setMessage(null); }} style={styles.authSwitch} activeOpacity={0.7}>
             <Text style={[styles.authSwitchText, { color: theme.textSecondary }]}>
               {isLogin ? "Don't have an account? " : 'Already have an account? '}
               <Text style={{ color: theme.accent }}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
@@ -229,8 +594,70 @@ function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
 // ============================================
 // BOTTOM TAB BAR
 // ============================================
+function TabBarItem({ tab, isActive, onPress, notificationCount, theme }: {
+  tab: { id: string; icon: keyof typeof Feather.glyphMap; label: string };
+  isActive: boolean;
+  onPress: () => void;
+  notificationCount?: number;
+  theme: Theme;
+}) {
+  const scale = useSharedValue(1);
+  const translateY = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateY: translateY.value }],
+  }));
+
+  const handlePress = () => {
+    haptic.selection();
+    scale.value = withSequence(
+      withSpring(0.85, { damping: 15, stiffness: 400 }),
+      withSpring(1, { damping: 12, stiffness: 350 })
+    );
+    if (!isActive) {
+      translateY.value = withSequence(
+        withSpring(-3, { damping: 15, stiffness: 400 }),
+        withSpring(0, { damping: 12, stiffness: 350 })
+      );
+    }
+    onPress();
+  };
+
+  return (
+    <Pressable style={styles.tabItem} onPress={handlePress}>
+      <Animated.View style={[{ alignItems: 'center' }, animatedStyle]}>
+        <View style={{ position: 'relative' }}>
+          <Feather
+            name={tab.icon}
+            size={22}
+            color={isActive ? theme.accent : theme.textSecondary}
+          />
+          {tab.id === 'settings' && notificationCount && notificationCount > 0 && (
+            <Animated.View
+              entering={ZoomIn.springify()}
+              style={{ position: 'absolute', top: -6, right: -8, backgroundColor: theme.accent, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>{notificationCount}</Text>
+            </Animated.View>
+          )}
+        </View>
+        <Text style={[styles.tabLabel, { color: isActive ? theme.accent : theme.textSecondary, fontWeight: isActive ? '600' : '500' }]}>
+          {tab.label}
+        </Text>
+        {isActive && (
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            style={{ position: 'absolute', bottom: -8, width: 4, height: 4, borderRadius: 2, backgroundColor: theme.accent }}
+          />
+        )}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 function TabBar({ activeTab, onTabPress, notificationCount }: { activeTab: string; onTabPress: (tab: string) => void; notificationCount?: number }) {
   const { theme } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const tabs: { id: string; icon: keyof typeof Feather.glyphMap; label: string }[] = [
     { id: 'feed', icon: 'camera', label: 'Feed' },
     { id: 'home', icon: 'check-square', label: 'Goals' },
@@ -239,32 +666,16 @@ function TabBar({ activeTab, onTabPress, notificationCount }: { activeTab: strin
   ];
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+    <View style={[styles.tabBar, { backgroundColor: theme.card, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 16) }]}>
       {tabs.map(tab => (
-        <TouchableOpacity
+        <TabBarItem
           key={tab.id}
-          style={styles.tabItem}
+          tab={tab}
+          isActive={activeTab === tab.id}
           onPress={() => onTabPress(tab.id)}
-        >
-          <View style={{ position: 'relative' }}>
-            <Feather
-              name={tab.icon}
-              size={22}
-              color={activeTab === tab.id ? theme.accent : theme.textSecondary}
-            />
-            {tab.id === 'settings' && notificationCount && notificationCount > 0 && (
-              <View style={{ position: 'absolute', top: -4, right: -6, backgroundColor: '#FF3B30', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{notificationCount}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={[
-            styles.tabLabel,
-            { color: activeTab === tab.id ? theme.accent : theme.textSecondary }
-          ]}>
-            {tab.label}
-          </Text>
-        </TouchableOpacity>
+          notificationCount={tab.id === 'settings' ? notificationCount : undefined}
+          theme={theme}
+        />
       ))}
     </View>
   );
@@ -284,18 +695,27 @@ function HomeScreen({
   goals,
   onGoalPress,
   onAddGoal,
-  onCheckIn
+  onCheckIn,
+  onRefresh
 }: {
   goals: Goal[];
   onGoalPress: (goal: Goal) => void;
   onAddGoal: () => void;
   onCheckIn: (goal: Goal) => void;
+  onRefresh?: () => Promise<void>;
 }) {
   const { theme } = useContext(ThemeContext);
   const [timeLeft, setTimeLeft] = useState('');
   const [isCheckInWindow, setIsCheckInWindow] = useState(false);
   const [aiInsight, setAiInsight] = useState<AIInsight | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (onRefresh) await onRefresh();
+    setRefreshing(false);
+  };
 
   // Fetch proactive AI insight on mount
   useEffect(() => {
@@ -380,10 +800,21 @@ function HomeScreen({
   };
 
   return (
-    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={[styles.scrollView, { backgroundColor: theme.bg }]}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.accent}
+          colors={[theme.accent]}
+        />
+      }
+    >
       <Text style={[styles.greeting, { color: theme.text }]}>{getGreeting()}</Text>
       <Text style={[styles.subGreeting, { color: theme.textSecondary }]}>
-        You have {goals.length} active goals
+        {goals.length === 0 ? 'Start your first streak!' : `You have ${goals.length} active goal${goals.length > 1 ? 's' : ''}`}
       </Text>
 
       {/* AI Coach Insight Card */}
@@ -437,66 +868,117 @@ function HomeScreen({
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TODAY</Text>
 
-        {goals.map((goal) => {
-          // Calculate milestone progress
+        {goals.map((goal, index) => {
+          // Calculate milestone progress (progress toward next milestone)
           const milestones = [7, 21, 30, 100];
           const nextMilestone = milestones.find(m => goal.current_streak < m) || 100;
           const prevMilestone = milestones.filter(m => goal.current_streak >= m).pop() || 0;
-          const milestoneProgress = prevMilestone > 0 ? 100 : Math.round((goal.current_streak / nextMilestone) * 100);
+          const progressInCurrentTier = goal.current_streak - prevMilestone;
+          const tierSize = nextMilestone - prevMilestone;
+          const milestoneProgress = Math.min(100, Math.round((progressInCurrentTier / tierSize) * 100));
 
           return (
-            <TouchableOpacity
+            <Animated.View
               key={goal.id}
-              style={[styles.goalCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-              onPress={() => onGoalPress(goal)}
-              activeOpacity={0.7}
+              entering={FadeInDown.delay(index * 100).springify()}
             >
-              <TouchableOpacity
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 26,
-                  backgroundColor: isCheckInWindow ? theme.accent : theme.bgSecondary,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 2,
-                  borderColor: isCheckInWindow ? theme.accent : theme.border
-                }}
-                onPress={() => onCheckIn(goal)}
+              <AnimatedButton
+                onPress={() => { onGoalPress(goal); }}
+                hapticType="light"
+                style={[styles.goalCard, {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.06,
+                  shadowRadius: 8,
+                  elevation: 3,
+                }]}
               >
-                <Text style={{ fontSize: 24 }}>{isCheckInWindow ? '📷' : '➕'}</Text>
-              </TouchableOpacity>
-              <View style={styles.goalContent}>
-                <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                  <Text style={{ fontSize: 16, marginRight: 4 }}>🔥</Text>
-                  <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>{goal.current_streak}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 14, marginLeft: 4 }}>day streak</Text>
-                  {goal.current_streak >= 7 && (
-                    <Text style={{ marginLeft: 8 }}>
-                      {goal.current_streak >= 100 ? '💎' : goal.current_streak >= 30 ? '🏆' : goal.current_streak >= 21 ? '🌟' : '⭐'}
+                <AnimatedButton
+                  onPress={() => { haptic.medium(); onCheckIn(goal); }}
+                  hapticType="medium"
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 26,
+                    backgroundColor: isCheckInWindow ? theme.accent : theme.bgSecondary,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    borderWidth: 2,
+                    borderColor: isCheckInWindow ? theme.accent : theme.border
+                  }}
+                >
+                  <Text style={{ fontSize: 24 }}>{isCheckInWindow ? '📷' : '➕'}</Text>
+                </AnimatedButton>
+                <View style={styles.goalContent}>
+                  <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Text style={{ fontSize: 16, marginRight: 4 }}>🔥</Text>
+                    <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>{goal.current_streak}</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 14, marginLeft: 4 }}>day streak</Text>
+                    {goal.current_streak >= 7 && (
+                      <Text style={{ marginLeft: 8 }}>
+                        {goal.current_streak >= 100 ? '💎' : goal.current_streak >= 30 ? '🏆' : goal.current_streak >= 21 ? '🌟' : '⭐'}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <View style={[styles.streakBadge, { backgroundColor: theme.accentSecondary + '20' }]}>
+                    <Text style={[styles.streakText, { color: theme.accentSecondary }]}>
+                      {milestoneProgress}%
                     </Text>
-                  )}
+                  </View>
+                  <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 4 }}>to {nextMilestone}d</Text>
+                  <StreakHeatMap streak={goal.current_streak} checkedDays={[]} />
                 </View>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <View style={[styles.streakBadge, { backgroundColor: theme.accentSecondary + '20' }]}>
-                  <Text style={[styles.streakText, { color: theme.accentSecondary }]}>
-                    {milestoneProgress}%
-                  </Text>
-                </View>
-                <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 4 }}>to {nextMilestone}d</Text>
-              </View>
-            </TouchableOpacity>
+              </AnimatedButton>
+            </Animated.View>
           );
         })}
 
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: theme.accent }]}
+        {goals.length === 0 && (
+          <Animated.View
+            entering={FadeInUp.springify()}
+            style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderRadius: 20,
+              borderWidth: 1,
+              padding: 40,
+              alignItems: 'center',
+              marginBottom: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              elevation: 4,
+            }}
+          >
+            <Animated.Text entering={ZoomIn.delay(200)} style={{ fontSize: 64, marginBottom: 16 }}>🎯</Animated.Text>
+            <Text style={{ color: theme.text, fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
+              Ready to Build a Habit?
+            </Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
+              Create your first goal and start your streak today!
+            </Text>
+          </Animated.View>
+        )}
+
+        <AnimatedButton
           onPress={onAddGoal}
+          hapticType="medium"
+          style={[styles.addButton, { backgroundColor: theme.accent }]}
         >
+          <LinearGradient
+            colors={[theme.accent, '#D4675A']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12 }}
+          />
           <Text style={styles.addButtonText}>+ Add New Goal</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       </View>
     </ScrollView>
   );
@@ -536,7 +1018,7 @@ function FeedScreen({
   formatTimeAgo: (date: Date) => string;
 }) {
   const { theme } = useContext(ThemeContext);
-  const [activeTab, setActiveTab] = useState<'friends' | 'community' | 'photos'>('community');
+  const [activeTab, setActiveTab] = useState<'friends' | 'community' | 'photos'>('friends');
   const [feedData, setFeedData] = useState<ApiFeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
@@ -545,6 +1027,39 @@ function FeedScreen({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [expandRequests, setExpandRequests] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
+  const [heartVisible, setHeartVisible] = useState<string | null>(null);
+  const lastTap = useRef<{ [key: string]: number }>({});
+
+  const handleDoubleTap = (itemId: string) => {
+    const now = Date.now();
+    const lastTapTime = lastTap.current[itemId] || 0;
+    if (now - lastTapTime < 300) {
+      // Double tap detected
+      haptic.medium();
+      setLikedItems(prev => new Set(prev).add(itemId));
+      setHeartVisible(itemId);
+    }
+    lastTap.current[itemId] = now;
+  };
+
+  const toggleLike = (itemId: string) => {
+    haptic.light();
+    setLikedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchFeed(), fetchPendingRequests()]);
+    setRefreshing(false);
+  };
 
   // Fetch feed data
   useEffect(() => {
@@ -618,14 +1133,16 @@ function FeedScreen({
   };
 
   const acceptRequest = async (friendshipId: string) => {
+    setAcceptingId(friendshipId);
     try {
       const response = await fetch(`${API_URL}/friends/accept/${friendshipId}`, { method: 'POST' });
       if (response.ok) {
-        fetchPendingRequests();
-        fetchFeed();
+        await Promise.all([fetchPendingRequests(), fetchFeed()]);
       }
     } catch (e) {
       console.log('Accept error:', e);
+    } finally {
+      setAcceptingId(null);
     }
   };
 
@@ -665,15 +1182,34 @@ function FeedScreen({
   const displayFeed = activeTab === 'photos' ? myPhotosFeed : feedData;
 
   return (
-    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={[styles.scrollView, { backgroundColor: theme.bg }]}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.accent}
+          colors={[theme.accent]}
+        />
+      }
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Text style={[styles.pageTitle, { color: theme.text, marginBottom: 0 }]}>Feed</Text>
-        <TouchableOpacity
-          style={{ backgroundColor: theme.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
-          onPress={() => setShowAddFriend(true)}
+        <Animated.Text entering={FadeInDown.duration(400)} style={[styles.pageTitle, { color: theme.text, marginBottom: 0 }]}>Feed</Animated.Text>
+        <AnimatedButton
+          onPress={() => { haptic.light(); setShowAddFriend(true); }}
+          hapticType="light"
+          style={{ borderRadius: 20, overflow: 'hidden' }}
         >
-          <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 14 }}>+ Add Friend</Text>
-        </TouchableOpacity>
+          <LinearGradient
+            colors={[theme.accent, theme.accentSecondary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 14 }}>+ Add Friend</Text>
+          </LinearGradient>
+        </AnimatedButton>
       </View>
 
       {/* Pending Friend Requests - Compact Collapsible */}
@@ -720,10 +1256,16 @@ function FeedScreen({
                   <Text style={{ fontSize: 28, marginRight: 12 }}>{req.avatar}</Text>
                   <Text style={{ flex: 1, color: theme.text, fontWeight: '600', fontSize: 15 }}>{req.display_name}</Text>
                   <TouchableOpacity
-                    style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}
+                    style={{ backgroundColor: theme.accentSecondary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, minWidth: 80, alignItems: 'center' }}
                     onPress={() => acceptRequest(req.id)}
+                    disabled={acceptingId === req.id}
+                    activeOpacity={0.7}
                   >
-                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>Accept</Text>
+                    {acceptingId === req.id ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>Accept</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               ))}
@@ -742,6 +1284,7 @@ function FeedScreen({
         <TouchableOpacity
           style={[styles.feedTab, activeTab === 'friends' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('friends')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'friends' ? '#FFF' : theme.textSecondary }]}>
             Friends
@@ -750,6 +1293,7 @@ function FeedScreen({
         <TouchableOpacity
           style={[styles.feedTab, activeTab === 'community' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('community')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'community' ? '#FFF' : theme.textSecondary }]}>
             Community
@@ -758,6 +1302,7 @@ function FeedScreen({
         <TouchableOpacity
           style={[styles.feedTab, activeTab === 'photos' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('photos')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'photos' ? '#FFF' : theme.textSecondary }]}>
             My Photos
@@ -777,20 +1322,29 @@ function FeedScreen({
       )}
 
       {isLoading && activeTab !== 'photos' ? (
-        <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
+        <View>
+          {[0, 1, 2].map(i => <FeedCardSkeleton key={i} />)}
+        </View>
       ) : displayFeed.length === 0 ? (
-        <View style={{
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          style={{
           backgroundColor: theme.card,
           borderColor: theme.border,
           borderRadius: 20,
           borderWidth: 1,
           padding: 60,
           alignItems: 'center',
-          marginTop: 20
+          marginTop: 20,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          elevation: 3,
         }}>
-          <Text style={{ fontSize: 80, marginBottom: 24 }}>
+          <Animated.Text entering={ZoomIn.delay(200).duration(400).springify()} style={{ fontSize: 80, marginBottom: 24 }}>
             {activeTab === 'friends' ? '👥' : activeTab === 'photos' ? '📸' : '🌍'}
-          </Text>
+          </Animated.Text>
           <Text style={{ color: theme.text, fontSize: 22, fontWeight: '700', textAlign: 'center', marginBottom: 12 }}>
             {activeTab === 'friends' ? 'No Friends Added Yet' : activeTab === 'photos' ? 'No Check-ins Yet' : 'No Posts Yet'}
           </Text>
@@ -799,10 +1353,22 @@ function FeedScreen({
               activeTab === 'photos' ? 'Complete your first check-in to start building your streak!' :
                 'Be the first to share your progress with the community!'}
           </Text>
-        </View>
+        </Animated.View>
       ) : (
-        displayFeed.map((item: any) => (
-          <View key={item.id} style={[styles.feedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        displayFeed.map((item: any, index: number) => (
+          <Animated.View
+            key={item.id}
+            entering={FadeInDown.delay(index * 80).duration(400).springify()}
+            style={[styles.feedCard, {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              elevation: 4,
+            }]}
+          >
             <View style={styles.feedHeader}>
               <View style={styles.feedUser}>
                 <Text style={styles.feedAvatar}>{item.avatar}</Text>
@@ -829,52 +1395,77 @@ function FeedScreen({
               </View>
             </View>
 
-            {item.photoUri ? (
-              <Image source={{ uri: item.photoUri }} style={styles.feedImage} />
-            ) : (
-              <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
-                <Text style={{ fontSize: 52 }}>📷</Text>
-                <Text style={{ color: theme.textSecondary, marginTop: 8 }}>Photo check-in</Text>
-              </View>
-            )}
+            <Pressable onPress={() => handleDoubleTap(item.id)} style={{ position: 'relative' }}>
+              {item.photoUri ? (
+                <Image source={{ uri: item.photoUri }} style={styles.feedImage} />
+              ) : (
+                <View style={[styles.feedImagePlaceholder, { backgroundColor: theme.bgSecondary }]}>
+                  <Text style={{ fontSize: 52 }}>📷</Text>
+                  <Text style={{ color: theme.textSecondary, marginTop: 8 }}>Photo check-in</Text>
+                </View>
+              )}
+              <HeartAnimation
+                visible={heartVisible === item.id}
+                onComplete={() => setHeartVisible(null)}
+              />
+            </Pressable>
 
             <Text style={[styles.feedCaption, { color: theme.text }]}>{item.caption}</Text>
 
             <View style={styles.feedFooter}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <TouchableOpacity style={[styles.likeButton, { flexDirection: 'row', alignItems: 'center' }]}>
-                  <Text style={{ fontSize: 18 }}>❤️</Text>
-                  <Text style={{ color: theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>{item.likes || Math.floor(Math.random() * 20) + 1}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center' }}>
+                <AnimatedButton
+                  onPress={() => toggleLike(item.id)}
+                  hapticType="light"
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 2 }}
+                >
+                  <Text style={{ fontSize: 18 }}>{likedItems.has(item.id) ? '❤️' : '🤍'}</Text>
+                  <Text style={{ color: likedItems.has(item.id) ? theme.accent : theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>
+                    {(item.likes || Math.floor(Math.random() * 20) + 1) + (likedItems.has(item.id) ? 1 : 0)}
+                  </Text>
+                </AnimatedButton>
+                <AnimatedButton
+                  onPress={() => {}}
+                  hapticType="light"
+                  style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 2 }}
+                >
                   <Text style={{ fontSize: 16 }}>💬</Text>
                   <Text style={{ color: theme.textSecondary, marginLeft: 6, fontSize: 14, fontWeight: '600' }}>{Math.floor(Math.random() * 5)}</Text>
-                </TouchableOpacity>
+                </AnimatedButton>
               </View>
               <Text style={[styles.feedTime, { color: theme.textSecondary }]}>{item.time_ago}</Text>
             </View>
-          </View>
+          </Animated.View>
         ))
       )}
 
       {/* Add Friend Modal */}
-      {showAddFriend && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: theme.card, borderRadius: 24, padding: 24 }}>
+      <Modal
+        visible={showAddFriend}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => { setShowAddFriend(false); setSearchResults([]); setSearchQuery(''); }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 }}
+        >
+          <View style={{ backgroundColor: theme.card, borderRadius: 24, padding: 24, maxHeight: '80%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text }}>Add Friend</Text>
               <TouchableOpacity
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
                   backgroundColor: theme.bgSecondary,
                   justifyContent: 'center',
                   alignItems: 'center'
                 }}
                 onPress={() => { setShowAddFriend(false); setSearchResults([]); setSearchQuery(''); }}
+                activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 20, color: theme.textSecondary, fontWeight: '600' }}>×</Text>
+                <Text style={{ fontSize: 22, color: theme.textSecondary, fontWeight: '600' }}>×</Text>
               </TouchableOpacity>
             </View>
 
@@ -886,10 +1477,13 @@ function FeedScreen({
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onSubmitEditing={handleSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
               <TouchableOpacity
                 style={{ backgroundColor: theme.accent, paddingHorizontal: 20, borderRadius: 16, justifyContent: 'center', marginLeft: 10 }}
                 onPress={handleSearch}
+                activeOpacity={0.7}
               >
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Search</Text>
               </TouchableOpacity>
@@ -897,27 +1491,30 @@ function FeedScreen({
 
             {isSearching && <ActivityIndicator color={theme.accent} style={{ marginVertical: 20 }} />}
 
-            {searchResults.map(user => (
-              <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.border }}>
-                <Text style={{ fontSize: 32, marginRight: 14 }}>{user.avatar}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 16 }}>{user.display_name}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 14 }}>@{user.username}</Text>
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {searchResults.map(user => (
+                <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+                  <Text style={{ fontSize: 32, marginRight: 14 }}>{user.avatar}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.text, fontWeight: '600', fontSize: 16 }}>{user.display_name}</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 14 }}>@{user.username}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: user.friendship_status ? theme.bgSecondary : theme.accent,
+                      paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20
+                    }}
+                    onPress={() => sendFriendRequest(user.username)}
+                    disabled={!!user.friendship_status}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: user.friendship_status ? theme.textSecondary : '#FFF', fontWeight: '600', fontSize: 14 }}>
+                      {user.friendship_status === 'accepted' ? 'Friends' : user.friendship_status === 'pending' ? 'Pending' : 'Add'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: user.friendship_status ? theme.bgSecondary : theme.accent,
-                    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20
-                  }}
-                  onPress={() => sendFriendRequest(user.username)}
-                  disabled={!!user.friendship_status}
-                >
-                  <Text style={{ color: user.friendship_status ? theme.textSecondary : '#FFF', fontWeight: '600', fontSize: 14 }}>
-                    {user.friendship_status === 'accepted' ? 'Friends' : user.friendship_status === 'pending' ? 'Pending' : 'Add'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+              ))}
+            </ScrollView>
 
             {searchResults.length === 0 && searchQuery && !isSearching && (
               <View style={{ alignItems: 'center', paddingVertical: 30 }}>
@@ -940,8 +1537,8 @@ function FeedScreen({
               </View>
             )}
           </View>
-        </View>
-      )}
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -966,6 +1563,13 @@ function SettingsScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [userStats, setUserStats] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchNotifications(), fetchUserStats()]);
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -1017,17 +1621,29 @@ function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={[styles.scrollView, { backgroundColor: theme.bg }]}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.accent}
+          colors={[theme.accent]}
+        />
+      }
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Text style={[styles.pageTitle, { color: theme.text, marginBottom: 0 }]}>Settings</Text>
         <TouchableOpacity
-          style={{ position: 'relative' }}
+          style={{ position: 'relative', padding: 8 }}
           onPress={() => setShowNotifications(!showNotifications)}
+          activeOpacity={0.7}
         >
           <Feather name="bell" size={24} color={theme.text} />
           {unreadCount > 0 && (
-            <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#FF3B30', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{unreadCount}</Text>
+            <View style={{ position: 'absolute', top: 2, right: 2, backgroundColor: theme.accent, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>{unreadCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -1035,22 +1651,31 @@ function SettingsScreen() {
 
       {/* User Level Card */}
       {userStats && (
-        <View style={{ backgroundColor: theme.accent + '15', borderRadius: 16, padding: 16, marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ fontSize: 36, marginRight: 12 }}>{userStats.level_emoji}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 18 }}>Level {userStats.level}</Text>
-              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{userStats.level_name} • {userStats.total_xp} XP</Text>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 20 }}>
+          <LinearGradient
+            colors={[theme.accent + '20', theme.accentSecondary + '15']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ borderRadius: 16, padding: 16 }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 36, marginRight: 12 }}>{userStats.level_emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 18 }}>Level {userStats.level}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{userStats.level_name} • {userStats.total_xp} XP</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ color: theme.accent, fontWeight: '700' }}>{userStats.achievements_unlocked}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 11 }}>badges</Text>
+              </View>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ color: theme.accent, fontWeight: '700' }}>{userStats.achievements_unlocked}</Text>
-              <Text style={{ color: theme.textSecondary, fontSize: 11 }}>badges</Text>
-            </View>
-          </View>
-          <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 8, height: 6, overflow: 'hidden', marginTop: 12 }}>
-            <View style={{ backgroundColor: theme.accent, height: 6, width: `${userStats.progress_percent}%` }} />
-          </View>
-        </View>
+            <AnimatedProgressBar
+              progress={userStats.progress_percent}
+              color={theme.accent}
+              backgroundColor={theme.bgSecondary}
+            />
+          </LinearGradient>
+        </Animated.View>
       )}
 
       {/* Notifications Panel */}
@@ -1104,29 +1729,21 @@ function SettingsScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ACCOUNT</Text>
 
-        <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={[styles.settingTitle, { color: theme.text }]}>Profile</Text>
-            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Edit your profile info</Text>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Check-in Window</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>8:00 AM - 10:00 PM daily</Text>
           </View>
-          <Text style={{ color: theme.textSecondary }}>→</Text>
-        </TouchableOpacity>
+          <Text style={{ color: theme.accent, fontWeight: '600' }}>Active</Text>
+        </View>
 
-        <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={[styles.settingTitle, { color: theme.text }]}>Push Notifications</Text>
-            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Get streak reminders</Text>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>Streak Protection</Text>
+            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>One free miss per 30 days</Text>
           </View>
-          <Text style={{ color: theme.textSecondary }}>→</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.settingRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.settingInfo}>
-            <Text style={[styles.settingTitle, { color: theme.text }]}>Privacy</Text>
-            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>Control who sees your check-ins</Text>
-          </View>
-          <Text style={{ color: theme.textSecondary }}>→</Text>
-        </TouchableOpacity>
+          <Text style={{ color: theme.accentSecondary, fontWeight: '600' }}>1 left</Text>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -1154,14 +1771,16 @@ function SettingsScreen() {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.logoutButton, { borderColor: theme.accent }]}
+      <AnimatedButton
         onPress={async () => {
+          haptic.warning();
           await supabase.auth.signOut();
         }}
+        hapticType="medium"
+        style={[styles.logoutButton, { borderColor: theme.accent }]}
       >
         <Text style={[styles.logoutText, { color: theme.accent }]}>Sign Out</Text>
-      </TouchableOpacity>
+      </AnimatedButton>
     </ScrollView>
   );
 }
@@ -1228,6 +1847,14 @@ function TrophyScreen() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userRank, setUserRank] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [joiningChallenge, setJoiningChallenge] = useState<string | null>(null);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     fetchData();
@@ -1265,14 +1892,17 @@ function TrophyScreen() {
   };
 
   const joinChallenge = async (challengeId: string) => {
+    setJoiningChallenge(challengeId);
     try {
       const res = await fetch(`${API_URL}/challenges/join/${challengeId}`, { method: 'POST' });
       if (res.ok) {
         Alert.alert('🎉 Joined!', 'Good luck with the challenge!');
-        fetchData();
+        await fetchData();
       }
     } catch (e) {
       Alert.alert('Error', 'Failed to join challenge');
+    } finally {
+      setJoiningChallenge(null);
     }
   };
 
@@ -1284,26 +1914,46 @@ function TrophyScreen() {
   };
 
   return (
-    <ScrollView style={[styles.scrollView, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={[styles.scrollView, { backgroundColor: theme.bg }]}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.accent}
+          colors={[theme.accent]}
+        />
+      }
+    >
       <Text style={[styles.pageTitle, { color: theme.text }]}>Compete</Text>
 
       {/* User Stats Banner */}
       {userStats && activeTab === 'achievements' && (
-        <View style={{ backgroundColor: theme.accent + '15', borderRadius: 16, padding: 16, marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 32, marginRight: 12 }}>{userStats.level_emoji}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 18 }}>Level {userStats.level}: {userStats.level_name}</Text>
-              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{userStats.total_xp} XP • {userStats.xp_to_next_level} to next level</Text>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 20 }}>
+          <LinearGradient
+            colors={[theme.accent + '20', theme.accentSecondary + '15']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ borderRadius: 16, padding: 16 }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 32, marginRight: 12 }}>{userStats.level_emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 18 }}>Level {userStats.level}: {userStats.level_name}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{userStats.total_xp} XP • {userStats.xp_to_next_level} to next level</Text>
+              </View>
             </View>
-          </View>
-          <View style={{ backgroundColor: theme.bgSecondary, borderRadius: 8, height: 8, overflow: 'hidden' }}>
-            <View style={{ backgroundColor: theme.accent, height: 8, width: `${userStats.progress_percent}%` }} />
-          </View>
-          <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center' }}>
-            {userStats.achievements_unlocked} / {userStats.total_achievements} achievements unlocked
-          </Text>
-        </View>
+            <AnimatedProgressBar
+              progress={userStats.progress_percent}
+              color={theme.accent}
+              backgroundColor={theme.bgSecondary}
+            />
+            <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+              {userStats.achievements_unlocked} / {userStats.total_achievements} achievements unlocked
+            </Text>
+          </LinearGradient>
+        </Animated.View>
       )}
 
       {/* Tab Bar */}
@@ -1311,6 +1961,7 @@ function TrophyScreen() {
         <TouchableOpacity
           style={[styles.feedTab, activeTab === 'leaderboard' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('leaderboard')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'leaderboard' ? '#FFF' : theme.textSecondary }]}>
             🏆 Leaderboard
@@ -1319,6 +1970,7 @@ function TrophyScreen() {
         <TouchableOpacity
           style={[styles.feedTab, activeTab === 'challenges' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('challenges')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'challenges' ? '#FFF' : theme.textSecondary }]}>
             ⚔️ Challenges
@@ -1327,6 +1979,7 @@ function TrophyScreen() {
         <TouchableOpacity
           style={[styles.feedTab, activeTab === 'achievements' && { backgroundColor: theme.accent }]}
           onPress={() => setActiveTab('achievements')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.feedTabText, { color: activeTab === 'achievements' ? '#FFF' : theme.textSecondary }]}>
             🎖️ Badges
@@ -1335,24 +1988,34 @@ function TrophyScreen() {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
+        <View style={{ marginTop: 16 }}>
+          {[0, 1, 2, 3, 4].map(i => <GoalCardSkeleton key={i} />)}
+        </View>
       ) : activeTab === 'leaderboard' ? (
         <>
           <View style={{ marginTop: 16 }}>
             {userRank && (
-              <View style={{ backgroundColor: theme.accentSecondary + '20', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+              <Animated.View entering={FadeIn.duration(400)} style={{ backgroundColor: theme.accentSecondary + '20', borderRadius: 12, padding: 12, marginBottom: 16 }}>
                 <Text style={{ color: theme.accentSecondary, fontWeight: '600', textAlign: 'center' }}>
                   Your Rank: #{userRank} 🎯
                 </Text>
-              </View>
+              </Animated.View>
             )}
             {leaderboard.map((entry, idx) => (
-              <View key={entry.user_id} style={[styles.goalCard, {
+              <Animated.View
+                key={entry.user_id}
+                entering={FadeInDown.delay(idx * 60).duration(400).springify()}
+                style={[styles.goalCard, {
                 backgroundColor: idx < 3 ? theme.accent + '08' : theme.card,
                 borderColor: idx < 3 ? theme.accent + '40' : theme.border,
                 flexDirection: 'row',
                 alignItems: 'center',
-                padding: 16
+                padding: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: idx < 3 ? 0.1 : 0.05,
+                shadowRadius: 8,
+                elevation: idx < 3 ? 4 : 2,
               }]}>
                 <View style={{
                   width: 40,
@@ -1380,7 +2043,7 @@ function TrophyScreen() {
                   <Text style={{ color: theme.accent, fontWeight: '800', fontSize: 18 }}>{Math.round(entry.total_score)}</Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 12 }}>points</Text>
                 </View>
-              </View>
+              </Animated.View>
             ))}
             {leaderboard.length === 0 && (
               <View style={{
@@ -1412,14 +2075,22 @@ function TrophyScreen() {
         </>
       ) : activeTab === 'challenges' ? (
         <View style={{ marginTop: 20 }}>
-          {challenges.map(challenge => (
-            <View key={challenge.id} style={{
+          {challenges.map((challenge, idx) => (
+            <Animated.View
+              key={challenge.id}
+              entering={FadeInDown.delay(idx * 100).duration(400).springify()}
+              style={{
               backgroundColor: theme.card,
               borderColor: theme.border,
               borderWidth: 1,
               borderRadius: 20,
               padding: 24,
-              marginBottom: 20
+              marginBottom: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              elevation: 4,
             }}>
               {/* Header: Emoji + Title/Description */}
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
@@ -1545,11 +2216,17 @@ function TrophyScreen() {
                     marginTop: 8
                   }}
                   onPress={() => joinChallenge(challenge.id)}
+                  disabled={joiningChallenge === challenge.id}
+                  activeOpacity={0.7}
                 >
-                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 17 }}>Join Challenge</Text>
+                  {joiningChallenge === challenge.id ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 17 }}>Join Challenge</Text>
+                  )}
                 </TouchableOpacity>
               )}
-            </View>
+            </Animated.View>
           ))}
           {challenges.length === 0 && (
             <View style={{
@@ -1580,8 +2257,11 @@ function TrophyScreen() {
         </View>
       ) : (
         <View style={{ marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-          {achievements.map(ach => (
-            <View key={ach.id} style={{
+          {achievements.map((ach, idx) => (
+            <Animated.View
+              key={ach.id}
+              entering={ZoomIn.delay(idx * 60).duration(300).springify()}
+              style={{
               width: '48%',
               backgroundColor: ach.unlocked ? theme.card : theme.bgSecondary,
               borderRadius: 16,
@@ -1589,7 +2269,12 @@ function TrophyScreen() {
               marginBottom: 12,
               borderWidth: 1,
               borderColor: ach.unlocked ? theme.accent + '40' : theme.border,
-              opacity: ach.unlocked ? 1 : 0.5
+              opacity: ach.unlocked ? 1 : 0.5,
+              shadowColor: ach.unlocked ? theme.accent : '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: ach.unlocked ? 0.15 : 0.05,
+              shadowRadius: 8,
+              elevation: ach.unlocked ? 4 : 1,
             }}>
               {ach.unlocked && (
                 <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: theme.accentSecondary, borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
@@ -1604,7 +2289,7 @@ function TrophyScreen() {
               <View style={{ backgroundColor: ach.unlocked ? theme.accent + '20' : theme.bgSecondary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 10 }}>
                 <Text style={{ color: ach.unlocked ? theme.accent : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>+{ach.points} XP</Text>
               </View>
-            </View>
+            </Animated.View>
           ))}
           {achievements.length === 0 && (
             <View style={{
@@ -1670,19 +2355,32 @@ function GoalDetailScreen({
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity onPress={onBack} style={styles.backRow}>
-          <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
+        <TouchableOpacity onPress={onBack} style={[styles.backRow, { marginLeft: -8 }]} activeOpacity={0.7}>
+          <Text style={[styles.backText, { color: theme.text, fontSize: 16 }]}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.pageTitle, { color: theme.text }]}>{goal.title}</Text>
+        <Animated.Text entering={FadeInDown.duration(400)} style={[styles.pageTitle, { color: theme.text }]}>{goal.title}</Animated.Text>
 
-        <View style={[styles.propertyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Animated.View
+          entering={FadeInDown.delay(100).duration(400).springify()}
+          style={[styles.propertyCard, {
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+            elevation: 4,
+          }]}
+        >
           <View style={styles.propertyRow}>
             <Text style={[styles.propertyLabel, { color: theme.textSecondary }]}>Progress</Text>
             <View style={styles.propertyValue}>
-              <View style={[styles.progressTrack, { backgroundColor: theme.bgSecondary }]}>
-                <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.accent }]} />
-              </View>
+              <AnimatedProgressBar
+                progress={progress}
+                color={theme.accent}
+                backgroundColor={theme.bgSecondary}
+              />
               <Text style={[styles.progressPercent, { color: theme.text }]}>{progress}%</Text>
             </View>
           </View>
@@ -1693,12 +2391,19 @@ function GoalDetailScreen({
             <Text style={[styles.propertyLabel, { color: theme.textSecondary }]}>Streak</Text>
             <Text style={[styles.propertyValueText, { color: theme.text }]}>🔥 {goal.current_streak} days</Text>
           </View>
-        </View>
 
-        <Text style={[styles.blockTitle, { color: theme.text }]}>This Week</Text>
-        <View style={styles.weekGrid}>
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          <View style={styles.propertyRow}>
+            <Text style={[styles.propertyLabel, { color: theme.textSecondary }]}>Heat Map</Text>
+            <StreakHeatMap streak={goal.current_streak} checkedDays={completedDays} />
+          </View>
+        </Animated.View>
+
+        <Animated.Text entering={FadeInDown.delay(200).duration(400)} style={[styles.blockTitle, { color: theme.text }]}>This Week</Animated.Text>
+        <Animated.View entering={FadeInDown.delay(250).duration(400)} style={styles.weekGrid}>
           {weekDays.map((day, index) => (
-            <View key={day} style={styles.weekDay}>
+            <Animated.View key={day} entering={ZoomIn.delay(300 + index * 50).duration(300)} style={styles.weekDay}>
               <View style={[
                 styles.weekDayCircle,
                 { borderColor: theme.border },
@@ -1708,17 +2413,25 @@ function GoalDetailScreen({
                 {completedDays[index] && <Text style={styles.weekDayCheck}>✓</Text>}
               </View>
               <Text style={[styles.weekDayLabel, { color: theme.textSecondary }]}>{day}</Text>
-            </View>
+            </Animated.View>
           ))}
-        </View>
+        </Animated.View>
 
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.accent }]} onPress={onCheckIn}>
+        <AnimatedButton
+          onPress={onCheckIn}
+          hapticType="medium"
+          style={[styles.actionButton, { backgroundColor: theme.accent }]}
+        >
           <Text style={styles.actionButtonText}>📷 Check in now</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
 
-        <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={onAskCoach}>
+        <AnimatedButton
+          onPress={onAskCoach}
+          hapticType="light"
+          style={[styles.actionButtonSecondary, { backgroundColor: theme.card, borderColor: theme.border }]}
+        >
           <Text style={[styles.actionButtonTextSecondary, { color: theme.text }]}>💬 Ask AI Coach</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1731,6 +2444,7 @@ function GoalDetailScreen({
 interface AgenticMessage extends ChatMessage {
   isAgentic?: boolean;
   toolCalls?: Array<{ tool: string; args: any; result: any }>;
+  traceId?: string | null;
 }
 
 function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
@@ -1738,6 +2452,29 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<{ [idx: number]: 'up' | 'down' }>({});
+
+  const submitFeedback = async (traceId: string | null | undefined, score: number, msgIndex: number) => {
+    const direction = score > 0.5 ? 'up' : 'down';
+    setFeedbackGiven(prev => ({ ...prev, [msgIndex]: direction }));
+    haptic.light();
+
+    if (!traceId) return; // Still show the UI feedback even if no trace_id
+    try {
+      await fetch(`${API_URL}/ai/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trace_id: traceId,
+          score,
+          comment: direction === 'up' ? 'Helpful response' : 'Not helpful'
+        })
+      });
+    } catch (e) {
+      console.log('Feedback error:', e);
+    }
+  };
+
   const [conversation, setConversation] = useState<AgenticMessage[]>([
     {
       role: 'assistant',
@@ -1793,7 +2530,8 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
           role: 'assistant',
           content: data.message,
           isAgentic: data.is_agentic,
-          toolCalls: data.tool_calls
+          toolCalls: data.tool_calls,
+          traceId: data.trace_id
         }]);
       } else {
         const errorData = await response.text();
@@ -1822,7 +2560,7 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.chatHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-          <TouchableOpacity onPress={onBack}>
+          <TouchableOpacity onPress={onBack} activeOpacity={0.7}>
             <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1863,6 +2601,46 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
                     </View>
                   )}
                   <Markdown style={mdStyles}>{msg.content}</Markdown>
+                  {/* Feedback buttons - Opik human-in-the-loop */}
+                  {index > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 }}>
+                      {feedbackGiven[index] ? (
+                        <Animated.View entering={FadeIn.duration(300)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+                            {feedbackGiven[index] === 'up' ? '👍 Thanks for your feedback!' : '👎 We\'ll improve this'}
+                          </Text>
+                        </Animated.View>
+                      ) : (
+                        <>
+                          <AnimatedButton
+                            onPress={() => submitFeedback(msg.traceId, 1.0, index)}
+                            hapticType="light"
+                            style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 12,
+                              backgroundColor: theme.bgSecondary,
+                            }}
+                          >
+                            <Text style={{ fontSize: 14 }}>👍</Text>
+                          </AnimatedButton>
+                          <AnimatedButton
+                            onPress={() => submitFeedback(msg.traceId, 0.0, index)}
+                            hapticType="light"
+                            style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 12,
+                              backgroundColor: theme.bgSecondary,
+                            }}
+                          >
+                            <Text style={{ fontSize: 14 }}>👎</Text>
+                          </AnimatedButton>
+                          <Text style={{ fontSize: 11, color: theme.textSecondary + '80', marginLeft: 4 }}>Rate this response</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
                 </View>
               ) : (
                 <Text style={[styles.userMessage, { color: theme.text, backgroundColor: theme.accent + '20' }]}>
@@ -1903,6 +2681,7 @@ function AICoachScreen({ goal, onBack }: { goal: Goal; onBack: () => void }) {
             style={[styles.sendBtn, { backgroundColor: theme.accent }, !message.trim() && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!message.trim() || isLoading}
+            activeOpacity={0.7}
           >
             <Text style={styles.sendBtnText}>Send</Text>
           </TouchableOpacity>
@@ -1947,6 +2726,7 @@ const REMINDER_TIMES = [
 
 function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoalCreated: (goal: Goal) => void }) {
   const { theme } = useContext(ThemeContext);
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<WizardStep>('title');
   const [title, setTitle] = useState('');
   const [frequency, setFrequency] = useState('daily');
@@ -2249,7 +3029,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.card }}>
-          <TouchableOpacity onPress={handleBack} style={{ padding: 8 }}>
+          <TouchableOpacity onPress={handleBack} style={{ padding: 8 }} activeOpacity={0.7}>
             <Text style={{ fontSize: 16, color: theme.text }}>←</Text>
           </TouchableOpacity>
           <View style={{ flex: 1, paddingHorizontal: 16 }}>
@@ -2266,11 +3046,12 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
         </ScrollView>
 
         {/* Bottom Actions */}
-        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 40, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border }}>
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: Math.max(insets.bottom, 20) + 20, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border }}>
           {step === 'confirm' ? (
             <TouchableOpacity
               style={{ backgroundColor: theme.accent, paddingVertical: 18, borderRadius: 16, alignItems: 'center' }}
               onPress={createGoal}
+              activeOpacity={0.7}
             >
               <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>🚀 Start My Streak</Text>
             </TouchableOpacity>
@@ -2279,6 +3060,7 @@ function CreateGoalScreen({ onBack, onGoalCreated }: { onBack: () => void; onGoa
               style={{ backgroundColor: canProceed ? theme.accent : theme.bgSecondary, paddingVertical: 18, borderRadius: 16, alignItems: 'center' }}
               onPress={handleNext}
               disabled={!canProceed}
+              activeOpacity={0.7}
             >
               <Text style={{ color: canProceed ? '#FFF' : theme.textSecondary, fontSize: 17, fontWeight: '700' }}>
                 {step === 'classify' ? 'Continue' : 'Next'}
@@ -2407,7 +3189,7 @@ function CheckInScreen({
         >
           <SafeAreaView style={styles.cameraOverlay}>
             <View style={styles.cameraTopBar}>
-              <TouchableOpacity onPress={onBack} style={styles.cameraCloseBtn}>
+              <TouchableOpacity onPress={onBack} style={styles.cameraCloseBtn} activeOpacity={0.7}>
                 <Text style={styles.cameraClose}>✕</Text>
               </TouchableOpacity>
               <View style={styles.goalBadge}>
@@ -2420,10 +3202,10 @@ function CheckInScreen({
 
         <View style={styles.cameraBottomBar}>
           <View style={{ width: 60 }} />
-          <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
+          <TouchableOpacity style={styles.captureBtn} onPress={takePhoto} activeOpacity={0.8}>
             <View style={styles.captureBtnInner} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.flipBtn} onPress={toggleCamera}>
+          <TouchableOpacity style={styles.flipBtn} onPress={toggleCamera} activeOpacity={0.7}>
             <Text style={styles.flipBtnText}>🔄</Text>
           </TouchableOpacity>
         </View>
@@ -2444,7 +3226,7 @@ function CheckInScreen({
 
           {/* Top bar */}
           <View style={styles.editTopBar}>
-            <TouchableOpacity onPress={() => { setPhoto(null); setStage('capture'); }} style={styles.editBackBtn}>
+            <TouchableOpacity onPress={() => { setPhoto(null); setStage('capture'); }} style={styles.editBackBtn} activeOpacity={0.7}>
               <Text style={{ color: '#FFF', fontSize: 16 }}>← Retake</Text>
             </TouchableOpacity>
             <View style={styles.goalBadge}>
@@ -2474,6 +3256,7 @@ function CheckInScreen({
               <TouchableOpacity
                 style={[styles.shareBtn, { backgroundColor: theme.accent }]}
                 onPress={verifyAndSubmit}
+                activeOpacity={0.7}
               >
                 <Text style={styles.shareBtnText}>Share Check-in →</Text>
               </TouchableOpacity>
@@ -2500,14 +3283,15 @@ function CheckInScreen({
 
         {stage === 'verified' && (
           <>
-            <Text style={styles.verifyEmoji}>✅</Text>
-            <Text style={[styles.verifyTitle, { color: theme.text }]}>Verified!</Text>
-            <Text style={[styles.verifySubtitle, { color: theme.textSecondary }]}>
+            <ConfettiEffect active={true} />
+            <Animated.Text entering={ZoomIn.duration(400).springify()} style={styles.verifyEmoji}>✅</Animated.Text>
+            <Animated.Text entering={FadeInUp.delay(200).duration(400)} style={[styles.verifyTitle, { color: theme.text }]}>Verified!</Animated.Text>
+            <Animated.Text entering={FadeInUp.delay(300).duration(400)} style={[styles.verifySubtitle, { color: theme.textSecondary }]}>
               {verificationMessage}
-            </Text>
-            <Text style={[styles.streakBig, { color: theme.accent }]}>
+            </Animated.Text>
+            <Animated.Text entering={FadeInUp.delay(400).duration(400).springify()} style={[styles.streakBig, { color: theme.accent }]}>
               🔥 {goal.current_streak + 1} days
-            </Text>
+            </Animated.Text>
           </>
         )}
 
@@ -2522,6 +3306,7 @@ function CheckInScreen({
               <TouchableOpacity
                 style={[styles.retakeBtn, { borderColor: theme.border }]}
                 onPress={() => { setPhoto(null); setStage('capture'); }}
+                activeOpacity={0.7}
               >
                 <Text style={{ color: theme.text }}>Retake Photo</Text>
               </TouchableOpacity>
@@ -2531,6 +3316,7 @@ function CheckInScreen({
                   // Allow user to submit anyway
                   if (photo) onComplete(photo, caption || `Day ${goal.current_streak + 1}! 💪`);
                 }}
+                activeOpacity={0.7}
               >
                 <Text style={styles.submitBtnText}>Submit Anyway</Text>
               </TouchableOpacity>
@@ -2644,64 +3430,74 @@ export default function App() {
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <View style={[styles.container, { backgroundColor: theme.bg, justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={theme.accent} />
-        </View>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </ThemeContext.Provider>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+          <View style={[styles.container, { backgroundColor: theme.bg, justifyContent: 'center', alignItems: 'center' }]}>
+            <ActivityIndicator size="large" color={theme.accent} />
+          </View>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
     );
   }
 
   // Show auth screen if not logged in
   if (!session) {
     return (
-      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <AuthScreen onAuthSuccess={() => { }} />
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </ThemeContext.Provider>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+          <AuthScreen onAuthSuccess={() => { }} />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
     );
   }
 
   if (screen === 'create') {
     return (
-      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <CreateGoalScreen
-          onBack={() => setScreen('tabs')}
-          onGoalCreated={(newGoal) => {
-            setGoals(prev => [...prev, newGoal]);
-            setSelectedGoal(newGoal);
-            setScreen('goal');
-          }}
-        />
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </ThemeContext.Provider>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+          <CreateGoalScreen
+            onBack={() => setScreen('tabs')}
+            onGoalCreated={(newGoal) => {
+              setGoals(prev => [...prev, newGoal]);
+              setSelectedGoal(newGoal);
+              setScreen('goal');
+            }}
+          />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
     );
   }
 
   if (screen === 'checkin' && selectedGoal) {
     return (
-      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <CheckInScreen
-          goal={selectedGoal}
-          onBack={() => setScreen('goal')}
-          onComplete={(photoUri, caption) => {
-            handleCheckInComplete(selectedGoal.id, photoUri, caption);
-            setScreen('tabs');
-            setTab('feed'); // Go to feed to see the photo
-          }}
-        />
-        <StatusBar style="light" />
-      </ThemeContext.Provider>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+          <CheckInScreen
+            goal={selectedGoal}
+            onBack={() => setScreen('goal')}
+            onComplete={(photoUri, caption) => {
+              handleCheckInComplete(selectedGoal.id, photoUri, caption);
+              setScreen('tabs');
+              setTab('feed'); // Go to feed to see the photo
+            }}
+          />
+          <StatusBar style="light" />
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
     );
   }
 
   if (screen === 'coach' && selectedGoal) {
     return (
-      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <AICoachScreen goal={selectedGoal} onBack={() => setScreen('goal')} />
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </ThemeContext.Provider>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+          <AICoachScreen goal={selectedGoal} onBack={() => setScreen('goal')} />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
     );
   }
 
@@ -2709,36 +3505,43 @@ export default function App() {
     // Get fresh goal from goals array to reflect updated checkedToday status
     const currentGoal = goals.find(g => g.id === selectedGoal.id) || selectedGoal;
     return (
-      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-        <GoalDetailScreen
-          goal={currentGoal}
-          onBack={() => setScreen('tabs')}
-          onAskCoach={() => setScreen('coach')}
-          onCheckIn={() => setScreen('checkin')}
-        />
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </ThemeContext.Provider>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+          <GoalDetailScreen
+            goal={currentGoal}
+            onBack={() => setScreen('tabs')}
+            onAskCoach={() => setScreen('coach')}
+            onCheckIn={() => setScreen('checkin')}
+          />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
-      <View style={[styles.container, { backgroundColor: theme.bg }]}>
-        <SafeAreaView style={{ flex: 1 }}>
-          {tab === 'home' && (
-            <HomeScreen
-              goals={goals}
-              onGoalPress={(goal) => { setSelectedGoal(goal); setScreen('goal'); }}
-              onAddGoal={() => setScreen('create')}
-              onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
-            />
-          )}
-          {tab === 'feed' && <FeedScreen myCheckIns={myCheckIns} formatTimeAgo={formatTimeAgo} />}
-          {tab === 'trophy' && <TrophyScreen />}
-          {tab === 'settings' && <SettingsScreen />}
-        </SafeAreaView>
-        <TabBar activeTab={tab} onTabPress={setTab} />
-        <StatusBar style={isDark ? 'light' : 'dark'} />
+    <SafeAreaProvider>
+      <ThemeContext.Provider value={{ theme, isDark, toggle: () => setIsDark(!isDark) }}>
+        <View style={[styles.container, { backgroundColor: theme.bg }]}>
+          <SafeAreaView style={{ flex: 1 }}>
+            {tab === 'home' && (
+              <HomeScreen
+                goals={goals}
+                onGoalPress={(goal) => { setSelectedGoal(goal); setScreen('goal'); }}
+                onAddGoal={() => setScreen('create')}
+                onCheckIn={(goal) => { setSelectedGoal(goal); setScreen('checkin'); }}
+                onRefresh={async () => {
+                  // Simulate refresh - in production, fetch from API
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }}
+              />
+            )}
+            {tab === 'feed' && <FeedScreen myCheckIns={myCheckIns} formatTimeAgo={formatTimeAgo} />}
+            {tab === 'trophy' && <TrophyScreen />}
+            {tab === 'settings' && <SettingsScreen />}
+          </SafeAreaView>
+          <TabBar activeTab={tab} onTabPress={setTab} />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
 
         {/* Celebration Modal */}
         {showCelebration && celebrationData && (
@@ -2753,27 +3556,24 @@ export default function App() {
             alignItems: 'center',
             zIndex: 1000
           }}>
-            {/* Confetti effect - decorative emojis */}
-            <Text style={{ position: 'absolute', top: 60, left: 30, fontSize: 40, transform: [{ rotate: '-15deg' }] }}>🎉</Text>
-            <Text style={{ position: 'absolute', top: 80, right: 50, fontSize: 36, transform: [{ rotate: '20deg' }] }}>✨</Text>
-            <Text style={{ position: 'absolute', top: 150, left: 60, fontSize: 28 }}>🌟</Text>
-            <Text style={{ position: 'absolute', top: 120, right: 40, fontSize: 32 }}>🎊</Text>
-            <Text style={{ position: 'absolute', bottom: 200, left: 40, fontSize: 34 }}>⭐</Text>
-            <Text style={{ position: 'absolute', bottom: 180, right: 60, fontSize: 30 }}>💫</Text>
+            <ConfettiEffect active={true} />
 
-            <View style={{
+            <Animated.View
+              entering={ZoomIn.duration(500).springify()}
+              style={{
               backgroundColor: theme.card,
               borderRadius: 28,
               padding: 40,
               alignItems: 'center',
               marginHorizontal: 30,
-              shadowColor: '#000',
+              shadowColor: theme.accent,
               shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.5,
-              shadowRadius: 20
+              shadowOpacity: 0.3,
+              shadowRadius: 30,
+              elevation: 20,
             }}>
-              <Text style={{ fontSize: 80, marginBottom: 16 }}>{celebrationData.emoji}</Text>
-              <Text style={{
+              <Animated.Text entering={ZoomIn.delay(200).duration(400).springify()} style={{ fontSize: 80, marginBottom: 16 }}>{celebrationData.emoji}</Animated.Text>
+              <Animated.Text entering={FadeInUp.delay(300).duration(400)} style={{
                 color: theme.text,
                 fontSize: 28,
                 fontWeight: '800',
@@ -2782,16 +3582,16 @@ export default function App() {
                 fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif'
               }}>
                 {celebrationData.title}
-              </Text>
-              <Text style={{
+              </Animated.Text>
+              <Animated.Text entering={FadeInUp.delay(400).duration(400)} style={{
                 color: theme.accent,
                 fontSize: 20,
                 fontWeight: '700',
                 marginBottom: 12
               }}>
                 🔥 {celebrationData.milestone} Day Streak!
-              </Text>
-              <Text style={{
+              </Animated.Text>
+              <Animated.Text entering={FadeInUp.delay(500).duration(400)} style={{
                 color: theme.textSecondary,
                 fontSize: 16,
                 textAlign: 'center',
@@ -2799,23 +3599,25 @@ export default function App() {
                 marginBottom: 24
               }}>
                 {celebrationData.message}
-              </Text>
-              <TouchableOpacity
+              </Animated.Text>
+              <AnimatedButton
+                onPress={() => { haptic.success(); setShowCelebration(false); }}
+                hapticType="heavy"
                 style={{
                   backgroundColor: theme.accent,
                   paddingVertical: 16,
                   paddingHorizontal: 48,
                   borderRadius: 16
                 }}
-                onPress={() => setShowCelebration(false)}
               >
                 <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>Continue 🚀</Text>
-              </TouchableOpacity>
-            </View>
+              </AnimatedButton>
+            </Animated.View>
           </View>
         )}
-      </View>
-    </ThemeContext.Provider>
+        </View>
+      </ThemeContext.Provider>
+    </SafeAreaProvider>
   );
 }
 
@@ -2828,7 +3630,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
   // Tab bar
-  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingTop: 12, paddingBottom: 34 },
+  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingTop: 12 },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   tabIcon: { fontSize: 22, opacity: 0.5 },
   tabLabel: { fontSize: 11, marginTop: 4 },
@@ -2844,7 +3646,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: 16 },
 
   // Goal cards
-  goalCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 16, borderWidth: 1, marginBottom: 14 },
+  goalCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
   checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, marginRight: 14, justifyContent: 'center', alignItems: 'center' },
   checkboxInner: { width: 12, height: 12, borderRadius: 4, opacity: 0 },
   checkboxPulse: { width: 12, height: 12, borderRadius: 6 },
@@ -2888,7 +3690,7 @@ const styles = StyleSheet.create({
   emptyStateText: { fontSize: 14, textAlign: 'center' },
 
   // Settings
-  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 10 },
   settingInfo: { flex: 1, marginRight: 16 },
   settingTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
   settingDesc: { fontSize: 14, lineHeight: 20 },
@@ -2920,8 +3722,8 @@ const styles = StyleSheet.create({
   actionButtonTextSecondary: { fontSize: 15, fontWeight: '600' },
 
   // Back
-  backRow: { paddingVertical: 16 },
-  backText: { fontSize: 15 },
+  backRow: { paddingVertical: 12, paddingHorizontal: 8 },
+  backText: { fontSize: 16 },
 
   // Chat
   chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
